@@ -9,3 +9,5 @@ langchain
 langchain-google-genai
 pymupdf
 pillow
+
+boto3
