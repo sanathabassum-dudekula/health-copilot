@@ -1,23 +1,24 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+﻿/* TRINEXA premium palette v2 */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --bg: #f7f9ff; --surface: #ffffff; --surface-2: #eaf7fb; --ink: #12383B; --muted: #486565; --line: #dce5f5;
-  --brand: #087F6B; --brand-strong: #064F46; --brand-soft: #B5E8D5; --on-brand: #FFFFFF;
-  --cura-blue: #2878ed; --cura-teal: #16a99e; --cura-gradient: linear-gradient(115deg, #6541e8 0%, #2878ed 55%, #16b7a5 100%);
-  --ok: #15803d; --ok-soft: #dcf5e4; --low: #0369a1; --low-soft: #dff1fc; --high: #b45309; --high-soft: #fdf0cf;
-  --crit: #b91c1c; --crit-soft: #fde3e3; --med: #4f46e5; --med-soft: #e4e6fd; --dx: #be185d; --dx-soft: #fce4f0;
+  --bg: #F6F3FC; --surface: #FFFFFF; --surface-2: #EEE8F8; --ink: #37304F; --muted: #716985; --line: #E3DCEE;
+  --brand: #6654A3; --brand-strong: #4C3D83; --brand-soft: #E9E2F8; --on-brand: #FFFFFF;
+  --cura-blue: #8173C6; --cura-teal: #A99BD8; --cura-gradient: linear-gradient(115deg, #51427F 0%, #7968B5 55%, #B5A7DE 100%);
+  --ok: #287448; --ok-soft: #E0F2E5; --low: #397A91; --low-soft: #E0F0F5; --high: #99631E; --high-soft: #F8EED9;
+  --crit: #B74444; --crit-soft: #F9E4E1; --med: #7167A8; --med-soft: #EEEBFA; --dx: #A64E78; --dx-soft: #F7E7EF;
   --shadow: 0 1px 2px rgb(22 101 52 / .05), 0 10px 28px -14px rgb(22 101 52 / .16);
   color-scheme: light;
 }
 .dark {
-  --bg: #111526; --surface: #1a2035; --surface-2: #252d48; --ink: #12383B; --muted: #486565; --line: #35415f;
-  --brand: #087F6B; --brand-strong: #064F46; --brand-soft: #B5E8D5; --on-brand: #FFFFFF;
-  --cura-blue: #6ba8ff; --cura-teal: #55d6c4; --cura-gradient: linear-gradient(115deg, #a18aff 0%, #6ba8ff 55%, #55d6c4 100%);
-  --ok: #4ade80; --ok-soft: #0f2e1b; --low: #38bdf8; --low-soft: #0a2a3d; --high: #fbbf24; --high-soft: #3a2a07;
-  --crit: #f87171; --crit-soft: #3d1414; --med: #a5b4fc; --med-soft: #25285a; --dx: #f9a8d4; --dx-soft: #4a1730;
+  --bg: #171421; --surface: #211D30; --surface-2: #302A43; --ink: #F0ECFA; --muted: #C0B8D3; --line: #423953;
+  --brand: #B6A8F0; --brand-strong: #D2C8FF; --brand-soft: #39304F; --on-brand: #211936;
+  --cura-blue: #B8ACFF; --cura-teal: #C1B2ED; --cura-gradient: linear-gradient(115deg, #A596E8 0%, #9B9CE5 55%, #D0B8EF 100%);
+  --ok: #86D6A0; --ok-soft: #203D2A; --low: #83CBE5; --low-soft: #203744; --high: #F0C477; --high-soft: #40331D;
+  --crit: #FF9994; --crit-soft: #442525; --med: #C2B6FF; --med-soft: #302747; --dx: #F0A4C8; --dx-soft: #45283A;
   --shadow: 0 1px 2px rgb(0 0 0 / .4), 0 10px 28px -14px rgb(0 0 0 / .6);
   color-scheme: dark;
 }
@@ -94,16 +95,16 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); 
   color: transparent;
 }/* Curamind brand theme */
 :root {
-  --bg: #FFFFFF;
+  --bg: #F6F3FC;
   --surface: #FFFFFF;
-  --surface-2: #DDF5EE;
-  --ink: #12383B;
-  --muted: #486565;
-  --line: #D8EBE7;
-  --brand: #087F6B;
-  --brand-strong: #064F46;
-  --brand-soft: #B5E8D5;
-  --mint: #55C9AD;
+  --surface-2: #EEE8F8;
+  --ink: #37304F;
+  --muted: #716985;
+  --line: #E3DCEE;
+  --brand: #6654A3;
+  --brand-strong: #4C3D83;
+  --brand-soft: #E9E2F8;
+  --mint: #A99BD8;
   --on-brand: #FFFFFF;
 }
 
@@ -118,7 +119,7 @@ button, input, select, textarea {
 }
 
 aside, .sidebar {
-  background: #F3FBF9;
+  background: #F6F3FC;
   border-color: var(--line);
 }
 
@@ -132,7 +133,7 @@ a {
 }
 
 a:hover {
-  color: #087F70;
+  color: #4C3D83;
 }
 
 button:focus-visible,
@@ -145,8 +146,8 @@ textarea:focus-visible {
 }
 
 ::selection {
-  background: #BCE9DD;
-  color: #123C46;
+  background: #E9E2F8;
+  color: #37304F;
 }
 
 
@@ -172,7 +173,7 @@ textarea:focus-visible {
 }
 
 .profile-chooser h1 {
-  color: #123C46;
+  color: #37304F;
   background: transparent;
   background-color: transparent;
   -webkit-box-decoration-break: clone;
@@ -194,12 +195,12 @@ textarea:focus-visible {
 
 /* CuraMind primary actions: mint green with white text */
 .btn-primary {
-  background-color: #159B80 !important;
+  background-color: #6654A3 !important;
   color: #FFFFFF !important;
-  border-color: #159B80 !important;
+  border-color: #6654A3 !important;
 }
 .btn-primary:hover {
-  background-color: #087F68 !important;
+  background-color: #4C3D83 !important;
   color: #FFFFFF !important;
 }
 .btn-primary svg { color: #FFFFFF; }
@@ -207,21 +208,21 @@ textarea:focus-visible {
 
 /* CuraMind balanced contrast refinement */
 :root {
-  --muted: #486565;
-  --ink: #12383B;
-  --line: #C7E2DB;
+  --muted: #716985;
+  --ink: #37304F;
+  --line: #E3DCEE;
 }
 
 /* Make secondary text easier to read */
 .text-muted,
 .text-slate-500,
 .text-slate-400 {
-  color: #496273 !important;
+  color: #716985 !important;
 }
 
 /* Strong, consistent headings */
 h1, h2, h3, h4 {
-  color: #123C46;
+  color: #37304F;
 }
 
 /* Supporting copy should remain readable */
@@ -232,32 +233,32 @@ p {
 /* Keep cards light but give their edges more definition */
 .border-line,
 .border {
-  border-color: #C7E2DB;
+  border-color: #E3DCEE;
 }
 
 /* Darker inactive navigation text */
 nav a {
-  color: #245563;
+  color: #4C3D83;
 }
 
 nav a:hover {
-  color: #087F68;
+  color: #4C3D83;
 }
 
 /* Keep the selected navigation item mint-green */
 nav a[aria-current="page"] {
-  color: #087F68;
+  color: #4C3D83;
 }
 
 /* Primary actions retain white text on green */
 .btn-primary {
-  background-color: #159B80 !important;
+  background-color: #6654A3 !important;
   color: #FFFFFF !important;
-  border-color: #159B80 !important;
+  border-color: #6654A3 !important;
 }
 
 .btn-primary:hover {
-  background-color: #087F68 !important;
+  background-color: #4C3D83 !important;
   color: #FFFFFF !important;
 }
 
@@ -265,30 +266,30 @@ nav a[aria-current="page"] {
 
 /* CuraMind layout refinement — appended safely */
 :root {
-  --bg: #F5FAF8;
+  --bg: #F6F3FC;
   --surface: #FFFFFF;
-  --surface-2: #E8F5F0;
-  --ink: #153B3A;
-  --muted: #526D6A;
-  --line: #D4E6E0;
-  --brand: #12856F;
-  --brand-strong: #086653;
+  --surface-2: #EEE8F8;
+  --ink: #37304F;
+  --muted: #716985;
+  --line: #E3DCEE;
+  --brand: #6654A3;
+  --brand-strong: #4C3D83;
   --brand-soft: #D8F1E8;
   --on-brand: #FFFFFF;
-  --shadow: 0 2px 6px rgb(19 66 55 / .04), 0 14px 36px -20px rgb(19 66 55 / .22);
+  --shadow: 0 2px 6px rgb(55 48 79 / .04), 0 14px 36px -20px rgb(55 48 79 / .22);
 }
 
 .dark {
-  --bg: #101C20;
-  --surface: #17282C;
-  --surface-2: #20383B;
-  --ink: #E7F5F0;
-  --muted: #B2C9C2;
-  --line: #35504E;
-  --brand: #55C9AD;
-  --brand-strong: #8AE0C9;
-  --brand-soft: #23483F;
-  --on-brand: #102521;
+  --bg: #171421;
+  --surface: #211D30;
+  --surface-2: #302A43;
+  --ink: #F0ECFA;
+  --muted: #C0B8D3;
+  --line: #423953;
+  --brand: #A99BD8;
+  --brand-strong: #D2C8FF;
+  --brand-soft: #39304F;
+  --on-brand: #211936;
 }
 
 body {
@@ -342,4 +343,53 @@ aside {
   .card {
     transition: none;
   }
+}
+
+/* Multilingual font adjustment */
+.app-shell.lang-hi { font-size: 15px; }
+.app-shell.lang-te { font-size: 15px; }
+.app-shell.lang-ta { font-size: 15px; }
+
+.app-shell.lang-hi h1,
+.app-shell.lang-te h1,
+.app-shell.lang-ta h1 { line-height: 1.3; }
+
+.app-shell.lang-hi h2,
+.app-shell.lang-te h2,
+.app-shell.lang-ta h2 { line-height: 1.35; }
+
+/* Final TRINEXA lavender theme: buttons and interactive controls */
+:root {
+  --brand: #6654A3;
+  --brand-strong: #4C3D83;
+  --brand-soft: #E9E2F8;
+  --cura-blue: #8173C6;
+  --cura-teal: #A99BD8;
+  --mint: #A99BD8;
+}
+
+.btn-primary,
+button[class*="bg-teal"],
+button[class*="bg-emerald"],
+button[class*="bg-green"],
+a[class*="bg-teal"],
+a[class*="bg-emerald"],
+a[class*="bg-green"] {
+  background-color: #6654A3 !important;
+  color: #FFFFFF !important;
+  border-color: #6654A3 !important;
+}
+
+button[class*="text-teal"],
+button[class*="text-emerald"],
+button[class*="text-green"],
+a[class*="text-teal"],
+a[class*="text-emerald"],
+a[class*="text-green"] {
+  color: #4C3D83 !important;
+}
+
+.btn-primary:hover {
+  background-color: #4C3D83 !important;
+  border-color: #4C3D83 !important;
 }

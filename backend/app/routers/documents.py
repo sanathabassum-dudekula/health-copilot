@@ -1,4 +1,5 @@
 
+
 import io
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import current_profile
 from ..db import get_db
+from ..ingestion.classify import classify_document
 from ..ingestion.graph import run_ingest
 from ..ingestion.summarize import LANGS, translate_summary
 from ..models import Document, Profile
@@ -59,16 +61,48 @@ async def upload(
     p: Profile = Depends(current_profile),
     db: Session = Depends(get_db),
 ):
+    # Check the supplied MIME type.
     if file.content_type not in EXT:
-        raise HTTPException(415, "Only JPG, PNG or PDF files are accepted")
+        raise HTTPException(
+            415, "Only JPG, PNG or PDF files are accepted"
+        )
 
     data = await file.read()
 
     if not data:
         raise HTTPException(400, "The uploaded file is empty")
+
     if len(data) > MAX_BYTES:
         raise HTTPException(413, "File is larger than 15 MB")
 
+    # Screen the actual document before creating a database record
+    # or uploading it to permanent storage.
+    try:
+        classification = classify_document(data, file.content_type)
+    except Exception:
+        raise HTTPException(
+            503,
+            "We couldn't verify this document right now. Please try again.",
+        )
+
+    # An uncertain result is not treated as proof that a document
+    # is non-medical. Ask the user to retry with a clearer document.
+    if classification.confidence < 0.80:
+        raise HTTPException(
+            422,
+            "We couldn't confidently identify this as a medical document. "
+            "Please upload a clearer medical report or image.",
+        )
+
+    if not classification.is_medical:
+        raise HTTPException(
+            422,
+            "This doesn't appear to be a medical document. "
+            "Please upload a prescription, medical report, test result, "
+            "or another document related to your health.",
+        )
+
+    # Only create and store the document after screening passes.
     doc = Document(
         profile_id=p.id,
         mime=file.content_type,

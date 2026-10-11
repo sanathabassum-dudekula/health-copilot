@@ -1,4 +1,4 @@
-from datetime import date
+﻿from datetime import date
 
 from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel
@@ -143,7 +143,7 @@ def timeline(types: str = "reports,medicines,diagnoses", p: Profile = Depends(cu
                     "type": "fracture_injury",
                     "date": event_date,
                     "document_id": d.id,
-                    "title": " — ".join(title_parts) or "Reported injury",
+                    "title": " â€” ".join(title_parts) or "Reported injury",
                     "detail": findings if isinstance(findings, str) and findings.strip() else None,
                     "needs_clinician_review": True,
                     "source": d.source,
@@ -155,3 +155,4 @@ def timeline(types: str = "reports,medicines,diagnoses", p: Profile = Depends(cu
 @router.get("/profile/fhir")
 def fhir_export(p: Profile = Depends(current_profile)):
     return to_bundle(p)
+

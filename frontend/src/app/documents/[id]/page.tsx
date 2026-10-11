@@ -64,22 +64,22 @@ export default function DocumentDetail() {
   const injuries = doc.extraction?.fractures_or_injuries ?? [];
   const women = doc.extraction?.womens_health ?? null;
   const womenFields: [string, unknown][] = women ? ([
-    ["Pregnancy status", women.pregnancy_status !== "unknown" ? women.pregnancy_status : null],
-    ["Last menstrual period", women.last_menstrual_period],
-    ["Estimated due date", women.estimated_due_date],
-    ["Gestational age", women.gestational_age],
-    ["Trimester", women.trimester !== "unknown" ? women.trimester : null],
-    ["Gravida", women.gravida],
-    ["Para", women.para],
-    ["Pregnancy complications", women.pregnancy_complications],
-    ["Prenatal visits or tests", women.prenatal_visits_or_tests],
-    ["Delivery date", women.delivery_date],
-    ["Postpartum notes", women.postpartum_notes],
-    ["Menstrual history", women.menstrual_history],
-    ["Reproductive health notes", women.reproductive_health_notes],
-    ["Cervical screening", women.cervical_screening],
-    ["Breast health notes", women.breast_health_notes],
-    ["Menopause or fertility notes", women.menopause_or_fertility_notes],
+    [t("documentDetail.pregnancyStatus"), women.pregnancy_status !== "unknown" ? women.pregnancy_status : null],
+    [t("documentDetail.lastMenstrualPeriod"), women.last_menstrual_period],
+    [t("documentDetail.estimatedDueDate"), women.estimated_due_date],
+    [t("documentDetail.gestationalAge"), women.gestational_age],
+    [t("documentDetail.trimester"), women.trimester !== "unknown" ? women.trimester : null],
+    [t("documentDetail.gravida"), women.gravida],
+    [t("documentDetail.para"), women.para],
+    [t("documentDetail.pregnancyComplications"), women.pregnancy_complications],
+    [t("documentDetail.prenatalVisits"), women.prenatal_visits_or_tests],
+    [t("documentDetail.deliveryDate"), women.delivery_date],
+    [t("documentDetail.postpartumNotes"), women.postpartum_notes],
+    [t("documentDetail.menstrualHistory"), women.menstrual_history],
+    [t("documentDetail.reproductiveHealth"), women.reproductive_health_notes],
+    [t("documentDetail.cervicalScreening"), women.cervical_screening],
+    [t("documentDetail.breastHealth"), women.breast_health_notes],
+    [t("documentDetail.menopauseFertility"), women.menopause_or_fertility_notes],
   ] as [string, unknown][]).filter(([, value]) => value !== null && value !== undefined && value !== "" && (!Array.isArray(value) || value.length > 0)) : [];
   const hasData = obs.length || meds.length || doc.conditions?.length || doc.allergies?.length || injuries.length || womenFields.length;
   const tabs = [{ value: "summary" as Tab, label: t("tab.summary") }, { value: "data" as Tab, label: t("tab.data") },
@@ -110,7 +110,7 @@ export default function DocumentDetail() {
         </div>)}
 
       <div className="no-print flex items-center gap-3">
-        <Segmented label="View" value={tab} onChange={setTab} options={tabs} />
+        <Segmented label={t("documentDetail.viewLabel")} value={tab} onChange={setTab} options={tabs} />
         {busy && <span className="flex items-center gap-2 text-sm text-muted"><Spinner />{t("translating")}</span>}
       </div>
 
@@ -166,28 +166,28 @@ export default function DocumentDetail() {
 
           {injuries.length > 0 && (
             <section className="space-y-3">
-              <SectionTitle>Fractures and injuries reported in this document</SectionTitle>
-              <p className="text-sm text-muted">Extracted from the source report; not an independent diagnosis. Verify against the original document.</p>
+              <SectionTitle>{t("documentDetail.injuriesTitle")}</SectionTitle>
+              <p className="text-sm text-muted">{t("documentDetail.injuriesDisclaimer")}</p>
               {injuries.map((injury, i) => (
                 <article key={i} className="card space-y-2 p-4">
-                  <h3 className="font-semibold">{[injury.side && injury.side !== "not_stated" ? injury.side : null, injury.body_site, injury.injury_type].filter(Boolean).join(" ? ") || "Reported injury"}</h3>
+                  <h3 className="font-semibold">{[injury.side && injury.side !== "not_stated" ? injury.side : null, injury.body_site, injury.injury_type].filter(Boolean).join(" ? ") || t("documentDetail.reportedInjury")}</h3>
                   {[
-                    ["Fracture pattern", injury.fracture_pattern],
-                    ["Displacement", injury.displacement],
-                    ["Open or closed", injury.open_or_closed !== "not_stated" ? injury.open_or_closed : null],
-                    ["Injury date", injury.date_of_injury],
-                    ["Report date", injury.date_of_report],
-                    ["Imaging", injury.imaging_modality],
-                    ["Reported findings", injury.reported_findings],
-                    ["Treatment or procedure", injury.treatment_or_procedure],
-                    ["Immobilization", injury.immobilization],
-                    ["Weight-bearing instructions", injury.weight_bearing_instruction],
-                    ["Follow-up plan", injury.follow_up_plan],
+                    [t("documentDetail.fracturePattern"), injury.fracture_pattern],
+                    [t("documentDetail.displacement"), injury.displacement],
+                    [t("documentDetail.openClosed"), injury.open_or_closed !== "not_stated" ? injury.open_or_closed : null],
+                    [t("documentDetail.injuryDate"), injury.date_of_injury],
+                    [t("documentDetail.reportDate"), injury.date_of_report],
+                    [t("documentDetail.imaging"), injury.imaging_modality],
+                    [t("documentDetail.findings"), injury.reported_findings],
+                    [t("documentDetail.treatment"), injury.treatment_or_procedure],
+                    [t("documentDetail.immobilization"), injury.immobilization],
+                    [t("documentDetail.weightBearing"), injury.weight_bearing_instruction],
+                    [t("documentDetail.followUp"), injury.follow_up_plan],
                   ].filter(([, value]) => value != null && value !== "").map(([label, value]) => (
                     <p key={String(label)} className="text-sm"><span className="text-muted">{label}: </span>{String(value)}</p>
                   ))}
-                  <p className="text-xs text-muted">Extraction confidence: {Math.round(injury.confidence * 100)}%</p>
-                  {injury.source_text && <details className="text-sm"><summary className="cursor-pointer text-brand">View source text</summary><p className="mt-2 whitespace-pre-wrap">{injury.source_text}</p></details>}
+                  <p className="text-xs text-muted">{t("documentDetail.extractionConfidence")}: {Math.round(injury.confidence * 100)}%</p>
+                  {injury.source_text && <details className="text-sm"><summary className="cursor-pointer text-brand">{t("documentDetail.viewSourceText")}</summary><p className="mt-2 whitespace-pre-wrap">{injury.source_text}</p></details>}
                 </article>
               ))}
             </section>
@@ -195,8 +195,8 @@ export default function DocumentDetail() {
 
           {womenFields.length > 0 && (
             <section className="space-y-3">
-              <SectionTitle>Women?s health information reported in this document</SectionTitle>
-              <p className="text-sm text-muted">Sensitive information extracted from this document. Verify it against the original report; it is not a diagnosis.</p>
+              <SectionTitle>{t("documentDetail.womenTitle")}</SectionTitle>
+              <p className="text-sm text-muted">{t("documentDetail.womenDisclaimer")}</p>
               <article className="card space-y-3 p-4">
                 {womenFields.map(([label, value]) => (
                   <div key={label}>
@@ -204,8 +204,8 @@ export default function DocumentDetail() {
                     <p className="whitespace-pre-wrap font-medium">{Array.isArray(value) ? value.join(", ") : String(value)}</p>
                   </div>
                 ))}
-                {women?.needs_clinician_review !== false && <p className="text-sm text-high">Clinician review recommended.</p>}
-                {women?.source_text && <details className="text-sm"><summary className="cursor-pointer text-brand">View source text</summary><p className="mt-2 whitespace-pre-wrap">{women.source_text}</p></details>}
+                {women?.needs_clinician_review !== false && <p className="text-sm text-high">{t("documentDetail.clinicianReview")}</p>}
+                {women?.source_text && <details className="text-sm"><summary className="cursor-pointer text-brand">{t("documentDetail.viewSourceText")}</summary><p className="mt-2 whitespace-pre-wrap">{women.source_text}</p></details>}
               </article>
             </section>
           )}

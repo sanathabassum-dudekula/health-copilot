@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -8,7 +8,7 @@ import { api, Profile } from "@/api";
 import Icon from "@/components/Icon";
 
 export default function ChooseProfilePage() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -30,7 +30,7 @@ export default function ChooseProfilePage() {
       .then(setProfile)
       .catch(() =>
         setNotice(
-          "We couldn't load your profile. Check that the health service is running."
+          t("home.loadError")
         )
       )
       .finally(() => setLoading(false));
@@ -40,11 +40,11 @@ export default function ChooseProfilePage() {
     event.preventDefault();
 
     setNotice(
-      "Family profiles are not connected to secure account storage yet. Your details have not been saved. We will connect this form after the family-account backend is ready."
+      `${t("home.familyProfiles")} are not connected to secure account storage yet. Your details have not been saved. We will connect this form after the family-account backend is ready.`
     );
   }
 
-  const initials = (profile?.name || "My Profile")
+  const initials = (profile?.name || t("home.myProfile"))
     .split(/\s+/)
     .map((part) => part[0])
     .slice(0, 2)
@@ -54,10 +54,10 @@ export default function ChooseProfilePage() {
   return (
     <div className="profile-chooser curamind-profile-split-layout-root mx-auto w-full max-w-6xl space-y-6 lg:py-4">
       <div className="curamind-profile-split-layout grid items-start gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:gap-12">
-        <aside className="curamind-profile-welcome flex flex-col justify-center rounded-3xl border border-line bg-white p-6 sm:p-8 lg:sticky lg:top-8 lg:min-h-[560px]">
+        <aside className="curamind-profile-welcome flex flex-col justify-center rounded-3xl border border-line bg-white p-6 sm:p-8 lg:min-h-[560px]">
           <Image
             src="/curamind-logo.jpeg"
-            alt="CuraMind logo"
+            alt={t("home.logoAlt")}
             width={520}
             height={180}
             priority
@@ -66,32 +66,31 @@ export default function ChooseProfilePage() {
 
           <span className="inline-flex w-fit items-center gap-2 rounded-full border border-line bg-brand-soft px-3 py-1.5 text-sm font-medium text-brand">
             <Icon name="heart" className="h-4 w-4" />
-            Your Health, Clearly Connected
+            {t("home.brand")}
           </span>
 
           <h1 className="mt-5 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
-            A healthier view starts here.
+            {t("home.welcomeTitle")}
           </h1>
 
           <p className="mt-4 text-base leading-7 text-muted">
-            Keep your medical records, reports, and health history organised in
-            one protected place.
+            {t("home.welcomeText")}
           </p>
 
           <div className="mt-8 grid grid-cols-3 gap-3 text-center">
             <div className="rounded-2xl bg-brand-soft p-3">
               <Icon name="shield" className="mx-auto h-5 w-5 text-brand" />
-              <p className="mt-2 text-xs font-semibold text-ink">Private</p>
+              <p className="mt-2 text-xs font-semibold text-ink">{t("home.private")}</p>
             </div>
 
             <div className="rounded-2xl bg-brand-soft p-3">
               <Icon name="heart" className="mx-auto h-5 w-5 text-brand" />
-              <p className="mt-2 text-xs font-semibold text-ink">Personal</p>
+              <p className="mt-2 text-xs font-semibold text-ink">{t("home.personal")}</p>
             </div>
 
             <div className="rounded-2xl bg-brand-soft p-3">
               <Icon name="activity" className="mx-auto h-5 w-5 text-brand" />
-              <p className="mt-2 text-xs font-semibold text-ink">Connected</p>
+              <p className="mt-2 text-xs font-semibold text-ink">{t("home.connected")}</p>
             </div>
           </div>
         </aside>
@@ -135,31 +134,30 @@ export default function ChooseProfilePage() {
             <div className="relative max-w-2xl space-y-4">
               <div className="inline-flex items-center gap-2 rounded-full border border-line bg-white/70 px-3 py-1.5 text-sm font-medium text-brand">
                 <Icon name="heart" className="h-4 w-4" />
-                Your Health, Clearly Connected
+                {t("home.brand")}
               </div>
 
               <h1 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
-                Choose your profile
+                {t("home.chooseProfile")}
               </h1>
 
               <p className="max-w-xl text-base leading-7 text-muted">
-                Select whose health records you want to view. Each person
-                should have a separate, protected health profile.
+                {t("home.chooseProfileText")}
               </p>
             </div>
           </section>
 
           <section className="space-y-4">
             <div>
-              <h2 className="text-xl font-semibold">Your profiles</h2>
+              <h2 className="text-xl font-semibold">{t("home.profiles")}</h2>
               <p className="mt-1 text-sm text-muted">
-                Start with your personal health records.
+                {t("home.profilesSub")}
               </p>
             </div>
 
             {loading ? (
               <div className="card p-6 text-sm text-muted">
-                Loading your profile…
+                {t("home.loading")}
               </div>
             ) : profile ? (
               <div className="grid gap-4 sm:grid-cols-2">
@@ -173,15 +171,15 @@ export default function ChooseProfilePage() {
 
                   <span className="min-w-0 flex-1">
                     <span className="block text-lg font-semibold">
-                      {profile.name || "My Profile"}
+                      {profile.name || t("home.myProfile")}
                     </span>
 
                     <span className="mt-1 block text-sm text-muted">
-                      My health records
+                      {t("home.myRecords")}
                     </span>
 
                     <span className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-brand">
-                      Continue to records
+                      {t("home.continueRecords")}
                       <Icon name="chevron" className="h-4 w-4" />
                     </span>
                   </span>
@@ -197,15 +195,15 @@ export default function ChooseProfilePage() {
 
                   <span>
                     <span className="block font-semibold">
-                      Profile settings
+                      {t("home.profileSettings")}
                     </span>
 
                     <span className="mt-1 block text-sm leading-6 text-muted">
-                      Update personal details, language, and ABHA information.
+                      {t("home.profileSettingsText")}
                     </span>
 
                     <span className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-brand">
-                      Manage profile
+                      {t("home.manageProfile")}
                       <Icon name="chevron" className="h-4 w-4" />
                     </span>
                   </span>
@@ -213,8 +211,7 @@ export default function ChooseProfilePage() {
               </div>
             ) : (
               <div className="card p-5 text-sm text-muted">
-                Your profile could not be loaded. Please check the backend
-                connection and refresh this page.
+                {t("home.profileUnavailable")}
               </div>
             )}
           </section>
@@ -230,17 +227,15 @@ export default function ChooseProfilePage() {
           <div className="flex-1">
             <h2 className="text-xl font-semibold">Family profiles</h2>
             <p className="mt-1 text-sm leading-6 text-muted">
-              Keep each family member’s health history separate and protected.
+              {t("home.familyText")}
             </p>
           </div>
         </div>
 
         <div className="rounded-xl border border-dashed border-line p-4">
-          <p className="font-medium">No linked family profiles yet</p>
+          <p className="font-medium">{t("home.noFamily")}</p>
           <p className="mt-1 text-sm leading-6 text-muted">
-            Add a family member after secure account linking is available. A
-            phone number alone will not grant access to anyone’s medical
-            records.
+            {t("home.noFamilyText")}
           </p>
         </div>
 
@@ -253,7 +248,7 @@ export default function ChooseProfilePage() {
           }}
         >
           <Icon name="plus" className="h-4 w-4" />
-          {showAdd ? "Close form" : "Add family member"}
+          {showAdd ? t("home.closeForm") : t("home.addFamily")}
         </button>
 
         {showAdd && (
@@ -261,30 +256,29 @@ export default function ChooseProfilePage() {
             onSubmit={handleAddMember}
             className="space-y-5 border-t border-line pt-5"
           >
-            <h3 className="font-semibold">Family member details</h3>
+            <h3 className="font-semibold">{t("home.familyDetails")}</h3>
 
             <p className="text-sm leading-6 text-muted">
-              Preview only. These details are not saved until secure
-              family-account storage is implemented.
+              {t("home.previewOnly")}
             </p>
 
             <div>
-              <h4 className="text-sm font-semibold">Basic information</h4>
+              <h4 className="text-sm font-semibold">{t("home.basicInfo")}</h4>
 
               <div className="mt-3 grid gap-4 sm:grid-cols-2">
                 <label className="block space-y-1.5 text-sm font-medium">
-                  Full name *
+                  {t("home.fullName")} *
                   <input
                     required
                     value={memberName}
                     onChange={(event) => setMemberName(event.target.value)}
                     className="min-h-11 w-full rounded-xl border border-line bg-surface px-3 text-ink"
-                    placeholder="Enter full name"
+                    placeholder={t("home.fullNamePlaceholder")}
                   />
                 </label>
 
                 <label className="block space-y-1.5 text-sm font-medium">
-                  Date of birth
+                  {t("home.dob")}
                   <input
                     type="date"
                     value={dateOfBirth}
@@ -295,7 +289,7 @@ export default function ChooseProfilePage() {
                 </label>
 
                 <label className="block space-y-1.5 text-sm font-medium">
-                  Age (optional if date of birth is entered)
+                  {t("home.age")}
                   <input
                     type="number"
                     min="0"
@@ -303,7 +297,7 @@ export default function ChooseProfilePage() {
                     value={age}
                     onChange={(event) => setAge(event.target.value)}
                     className="min-h-11 w-full rounded-xl border border-line bg-surface px-3 text-ink"
-                    placeholder="Age in years"
+                    placeholder={t("home.agePlaceholder")}
                   />
                 </label>
 
@@ -314,24 +308,24 @@ export default function ChooseProfilePage() {
                     onChange={(event) => setGender(event.target.value)}
                     className="min-h-11 w-full rounded-xl border border-line bg-surface px-3 text-ink"
                   >
-                    <option value="">Select gender (optional)</option>
-                    <option value="female">Female</option>
-                    <option value="male">Male</option>
-                    <option value="other">Other</option>
+                    <option value="">{t("home.selectGender")}</option>
+                    <option value="female">{t("home.female")}</option>
+                    <option value="male">{t("home.male")}</option>
+                    <option value="other">{t("home.other")}</option>
                     <option value="prefer_not_to_say">
-                      Prefer not to say
+                      {t("home.preferNot")}
                     </option>
                   </select>
                 </label>
 
                 <label className="block space-y-1.5 text-sm font-medium">
-                  Blood type
+                  {t("home.bloodType")}
                   <select
                     value={bloodGroup}
                     onChange={(event) => setBloodGroup(event.target.value)}
                     className="min-h-11 w-full rounded-xl border border-line bg-surface px-3 text-ink"
                   >
-                    <option value="">Unknown / not provided</option>
+                    <option value="">{t("home.unknownBlood")}</option>
                     {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map(
                       (item) => (
                         <option key={item} value={item}>
@@ -345,7 +339,7 @@ export default function ChooseProfilePage() {
             </div>
 
             <div className="space-y-4 border-t border-line pt-4">
-              <h4 className="text-sm font-semibold">Medical information</h4>
+              <h4 className="text-sm font-semibold">{t("home.medicalInfo")}</h4>
 
               <label className="block space-y-1.5 text-sm font-medium">
                 Allergies
@@ -355,84 +349,83 @@ export default function ChooseProfilePage() {
                   rows={2}
                   maxLength={2000}
                   className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-ink"
-                  placeholder="Known allergies or reactions"
+                  placeholder={t("home.allergiesPlaceholder")}
                 />
               </label>
 
               <label className="block space-y-1.5 text-sm font-medium">
-                Existing conditions and medical history
+                {t("home.conditions")}
                 <textarea
                   value={conditions}
                   onChange={(event) => setConditions(event.target.value)}
                   rows={3}
                   maxLength={4000}
                   className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-ink"
-                  placeholder="Conditions, surgeries, fractures, or other relevant history"
+                  placeholder={t("home.conditionsPlaceholder")}
                 />
               </label>
 
               <label className="block space-y-1.5 text-sm font-medium">
-                Current medicines and dosages
+                {t("home.medicines")}
                 <textarea
                   value={medicines}
                   onChange={(event) => setMedicines(event.target.value)}
                   rows={2}
                   maxLength={3000}
                   className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-ink"
-                  placeholder="Medicine names, dosages, and frequency if known"
+                  placeholder={t("home.medicinesPlaceholder")}
                 />
               </label>
 
               <label className="block space-y-1.5 text-sm font-medium">
-                Previous medical records
+                {t("home.previousRecords")}
                 <textarea
                   value={previousRecords}
                   onChange={(event) => setPreviousRecords(event.target.value)}
                   rows={3}
                   maxLength={4000}
                   className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-ink"
-                  placeholder="Previous reports, prescriptions, diagnoses, or record notes"
+                  placeholder={t("home.previousRecordsPlaceholder")}
                 />
               </label>
             </div>
 
             <div className="rounded-2xl border border-line bg-brand-soft p-4">
-              <h4 className="font-semibold">Emergency contact (optional)</h4>
+              <h4 className="font-semibold">{t("home.emergencyContact")}</h4>
               <p className="mt-1 text-sm text-muted">
-                Both fields can be left blank.
+                {t("home.optionalFields")}
               </p>
 
               <div className="mt-3 grid gap-4 sm:grid-cols-2">
                 <label className="block space-y-1.5 text-sm font-medium">
-                  Contact name
+                  {t("home.contactName")}
                   <input
                     value={emergencyName}
                     onChange={(event) => setEmergencyName(event.target.value)}
                     className="min-h-11 w-full rounded-xl border border-line bg-white px-3 text-ink"
-                    placeholder="Emergency contact name"
+                    placeholder={t("home.contactNamePlaceholder")}
                   />
                 </label>
 
                 <label className="block space-y-1.5 text-sm font-medium">
-                  Contact phone number
+                  {t("home.contactPhone")}
                   <input
                     type="tel"
                     value={emergencyPhone}
                     onChange={(event) => setEmergencyPhone(event.target.value)}
                     className="min-h-11 w-full rounded-xl border border-line bg-white px-3 text-ink"
-                    placeholder="Optional phone number"
+                    placeholder={t("home.contactPhonePlaceholder")}
                   />
                 </label>
               </div>
             </div>
 
             <p className="text-xs leading-5 text-muted">
-              * Required fields. Family details are not saved yet. ABHA access
-              requires secure identity verification and permission.
+              {t("home.requiredNote")}
             </p>
 
             <button type="submit" className="btn btn-primary">
-              Review setup requirements
+              {t("home.reviewSetup")}
             </button>
           </form>
         )}
@@ -448,9 +441,11 @@ export default function ChooseProfilePage() {
       </section>
 
       <p className="text-center text-xs leading-5 text-muted">
-        Family access and cross-device syncing require secure account
-        verification and permission controls.
+        {t("home.footer")}
       </p>
     </div>
   );
 }
+
+
+

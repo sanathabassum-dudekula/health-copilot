@@ -3,10 +3,16 @@
 // Per-tab visitor id: survives refresh, gone when the tab closes, so each tab sees only its own uploads.
 function visitId() {
   try {
-    let v = sessionStorage.getItem("visit");
-    if (!v) sessionStorage.setItem("visit", v = crypto.randomUUID());
+    let v = localStorage.getItem("visit");
+    if (!v) {
+      // Preserve the current tab's existing profile ID when possible.
+      v = sessionStorage.getItem("visit") || crypto.randomUUID();
+      localStorage.setItem("visit", v);
+    }
     return v;
-  } catch { return (visitId as { v?: string }).v ??= crypto.randomUUID(); }  // storage blocked: one id per page load
+  } catch {
+    return (visitId as { v?: string }).v ??= crypto.randomUUID();
+  }
 }
 
 async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -104,5 +110,6 @@ export const api = {
   abhaImport: () => post<{ imported_document_ids: number[] }>("/abha/import"),
   fhir: () => req<unknown>("/profile/fhir"),
 };
+
 
 

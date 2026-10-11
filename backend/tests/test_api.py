@@ -2,13 +2,53 @@
 import io
 import uuid
 
+import pytest
+
 from fastapi.testclient import TestClient
 from fhir.resources.R4B.bundle import Bundle
 from PIL import Image
 
 from app.ingestion import graph, summarize
-from app.ingestion.schemas import DocumentExtraction, Summary
+from app.ingestion.schemas import DocumentExtraction, Summary, DocumentClassification
 from app.main import app
+from app.routers import documents as document_routes
+
+
+@pytest.fixture(autouse=True)
+def mock_document_storage(monkeypatch, tmp_path):
+    # Keep API tests independent of real S3 credentials and network access.
+    stored = {}
+
+    def fake_upload(key, data, content_type):
+        stored[key] = data
+
+    def fake_download(key, destination):
+        from pathlib import Path
+        Path(destination).write_bytes(stored[key])
+
+    monkeypatch.setattr(document_routes, "store_file", fake_upload)
+    monkeypatch.setattr(document_routes, "delete_file", lambda key: stored.pop(key, None))
+
+    class FakeS3Body:
+        def __init__(self, data):
+            self.data = data
+
+        def read(self):
+            return self.data
+
+    class FakeS3Client:
+        def get_object(self, Bucket, Key):
+            if Key not in stored:
+                raise KeyError(Key)
+            return {"Body": FakeS3Body(stored[Key])}
+
+    monkeypatch.setattr(
+        document_routes, "get_s3_client", lambda: FakeS3Client()
+    )
+
+    from app.ingestion import prepare
+    monkeypatch.setattr(prepare, "download_file", fake_download)
+
 
 EXTRACTION = DocumentExtraction.model_validate({
     "doc_type": "lab_report", "doc_date": "2026-09-01", "patient_name": "Sunita Devi", "facility": "Lab X",
@@ -33,6 +73,14 @@ class FakeLLM:
         return self.out
 
 
+
+def _accept_medical_document(*args, **kwargs):
+    return DocumentClassification(
+        is_medical=True,
+        confidence=0.99,
+        reason="Accepted by the test classifier mock.",
+    )
+
 def _png():
     buf = io.BytesIO()
     Image.new("RGB", (50, 50), "white").save(buf, "PNG")
@@ -44,6 +92,10 @@ def _visit():
 
 
 def test_full_flow(monkeypatch):
+    from app.routers import documents
+    monkeypatch.setattr(
+        documents, 'classify_document', _accept_medical_document
+    )
     monkeypatch.setattr(graph, "structured", lambda *a: FakeLLM(EXTRACTION))
     monkeypatch.setattr(summarize, "structured", lambda *a: FakeLLM(SUMMARY))
     with TestClient(app, headers=_visit()) as c:
@@ -84,6 +136,10 @@ def test_full_flow(monkeypatch):
 
 
 def test_extraction_failure_marks_failed(monkeypatch):
+    from app.routers import documents
+    monkeypatch.setattr(
+        documents, 'classify_document', _accept_medical_document
+    )
     calls = []
 
     class Boom(FakeLLM):
@@ -99,6 +155,10 @@ def test_extraction_failure_marks_failed(monkeypatch):
 
 
 def test_digital_pdf_skips_images_and_pretranslates(monkeypatch):
+    from app.routers import documents
+    monkeypatch.setattr(
+        documents, 'classify_document', _accept_medical_document
+    )
     import pymupdf
     pdf = pymupdf.open()
     pdf.new_page().insert_textbox(pymupdf.Rect(72, 72, 520, 700), "Hemoglobin 10.8 g/dL reference 12-15 " * 10)  # digital page
@@ -128,6 +188,10 @@ def test_visitors_are_isolated():
         assert b.get("/profile").json()["name"] == "Guest"
 
 def test_injury_timeline_is_opt_in_and_private_fields_stay_hidden(monkeypatch):
+    from app.routers import documents
+    monkeypatch.setattr(
+        documents, 'classify_document', _accept_medical_document
+    )
     injury_extraction = DocumentExtraction.model_validate({
         "doc_type": "fracture_or_injury_report",
         "doc_date": "2026-09-01",
@@ -181,6 +245,10 @@ def test_injury_timeline_is_opt_in_and_private_fields_stay_hidden(monkeypatch):
         c.delete("/profile")
 
 def test_injury_timeline_date_fallbacks(monkeypatch):
+    from app.routers import documents
+    monkeypatch.setattr(
+        documents, 'classify_document', _accept_medical_document
+    )
     extraction = DocumentExtraction.model_validate({
         "doc_type": "fracture_or_injury_report",
         "doc_date": "2026-09-01",
@@ -234,3 +302,72 @@ def test_injury_timeline_date_fallbacks(monkeypatch):
         assert dates_by_site["knee"] == "2026-09-01", items
 
         c.delete("/profile")
+
+
+def test_nonmedical_document_is_rejected_before_storage(monkeypatch):
+    from app.routers import documents
+
+    def reject_nonmedical(*args, **kwargs):
+        return DocumentClassification(
+            is_medical=False,
+            confidence=0.99,
+            reason="The document is an electricity bill.",
+        )
+
+    monkeypatch.setattr(documents, "classify_document", reject_nonmedical)
+
+    with TestClient(app, headers=_visit()) as client:
+        response = client.post(
+            "/documents",
+            files={"file": ("electricity.png", _png(), "image/png")},
+        )
+
+    assert response.status_code == 422
+    assert "doesn't appear to be a medical document" in response.json()["detail"]
+
+
+def test_uncertain_document_classification_is_rejected(monkeypatch):
+    from app.routers import documents
+
+    def uncertain(*args, **kwargs):
+        return DocumentClassification(
+            is_medical=True,
+            confidence=0.50,
+            reason="Insufficient evidence.",
+        )
+
+    monkeypatch.setattr(documents, "classify_document", uncertain)
+
+    with TestClient(app, headers=_visit()) as client:
+        response = client.post(
+            "/documents",
+            files={"file": ("unclear.png", _png(), "image/png")},
+        )
+
+    assert response.status_code == 422
+    assert "couldn't confidently identify" in response.json()["detail"]
+
+
+def test_unfamiliar_medical_document_is_accepted(monkeypatch):
+    from app.routers import documents
+
+    def accept_unfamiliar_medical(*args, **kwargs):
+        return DocumentClassification(
+            is_medical=True,
+            confidence=0.95,
+            reason="A genuine medical record of an unfamiliar type.",
+        )
+
+    monkeypatch.setattr(
+        documents, "classify_document", accept_unfamiliar_medical
+    )
+
+    with TestClient(app, headers=_visit()) as client:
+        response = client.post(
+            "/documents",
+            files={"file": ("specialist-record.png", _png(), "image/png")},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "processing"
+

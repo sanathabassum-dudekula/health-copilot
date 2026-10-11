@@ -1,10 +1,10 @@
-import type { Metadata, Viewport } from "next";
+﻿import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "../index.css";
 import Providers from "./providers";
 
 export const metadata: Metadata = { title: "CuraMind | Your Health, Our AI" };
-export const viewport: Viewport = { themeColor: "#159B80" };
+export const viewport: Viewport = { themeColor: "#6654A3" };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
@@ -19,3 +19,4 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     </html>
   );
 }
+

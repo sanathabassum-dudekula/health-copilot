@@ -65,7 +65,7 @@ function Controls() {
 }
 
 function Layout({ children }: { children: ReactNode }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [down, setDown] = useState(false);
   const reload = useCallback(() => { api.profile().then((p) => { setProfile(p); setDown(false); }).catch(() => setDown(true)); }, []);
@@ -76,31 +76,31 @@ function Layout({ children }: { children: ReactNode }) {
     `flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition ${on ? "bg-brand-soft text-brand-strong" : "text-muted hover:bg-surface-2 hover:text-ink"}`;
   const abha = profile?.abha;
   return (
-    <div className={`app-shell min-h-screen ${path === "/" ? "" : "md:grid md:grid-cols-[17rem_1fr]"}`}>
+    <div lang={i18n.language} className={`app-shell min-h-screen lang-${i18n.language.split("-")[0]} ${path === "/" ? "" : "md:grid md:grid-cols-[17rem_1fr]"}`}>
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-surface focus:p-3">{t("skip")}</a>
 
-      {path !== "/" && (<aside className="no-print sticky top-0 hidden h-screen flex-col gap-6 border-r border-line bg-surface/70 p-5 backdrop-blur md:flex">
+      {path !== "/" && (<aside className="no-print sticky top-0 hidden h-screen flex-col gap-6 overflow-y-auto border-r border-line bg-surface/70 p-5 backdrop-blur md:flex">
         <Logo />
         <nav className="flex flex-col gap-1">
           {NAV.map((n) => <Link key={n.to} href={n.to} className={link(active(n))}><Icon name={n.icon} />{t(`nav.${n.key}`)}</Link>)}
         </nav>
 
         {/* LUMI_STAGE1_VISUAL_ONLY: visual placeholder, no AI integration */}
-        <section aria-label="Lumi AI assistant preview" className="rounded-2xl border border-line bg-brand-soft p-4">
+        <section aria-label={t("assistant.aria")} className="rounded-2xl border border-line bg-brand-soft p-4">
           <div className="flex items-center gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-brand-strong shadow-sm">
               <Icon name="heart" className="h-5 w-5" />
             </span>
             <div className="min-w-0">
-              <p className="font-semibold text-ink">Lumi</p>
-              <p className="text-xs font-medium text-muted">Your health companion</p>
+              <p className="font-semibold text-ink">{t("assistant.name")}</p>
+              <p className="text-xs font-medium text-muted">{t("assistant.tagline")}</p>
             </div>
           </div>
           <p className="mt-3 text-sm leading-5 text-ink">
-            A clearer understanding of your health, coming soon.
+            {t("assistant.description")}
           </p>
           <span className="mt-3 inline-flex rounded-full border border-line bg-white px-2.5 py-1 text-xs font-semibold text-brand-strong">
-            AI assistant ? Coming soon
+            {t("assistant.comingSoon")}
           </span>
         </section>
 
@@ -108,7 +108,7 @@ function Layout({ children }: { children: ReactNode }) {
           <Link href="/abha" className="card block space-y-1 p-3.5 transition hover:border-brand/40">
             <p className="eyebrow flex items-center gap-1.5"><Icon name="shield" className="h-3.5 w-3.5" />{t("yourAbha")}</p>
             <p className={`text-sm font-semibold ${abha?.linked ? "text-ok" : "text-muted"}`}>
-              {abha?.linked ? `Ã¢Å“â€œ ${t("abhaLinked")}` : abha?.number || abha?.address ? t("abhaPending") : t("abhaNotLinked")}
+              {abha?.linked ? `ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ ${t("abhaLinked")}` : abha?.number || abha?.address ? t("abhaPending") : t("abhaNotLinked")}
             </p>
           </Link>
           <Controls />
@@ -122,15 +122,15 @@ function Layout({ children }: { children: ReactNode }) {
         <main id="main" className="mx-auto max-w-5xl px-4 py-6 md:px-10 md:py-10">
           {/* LUMI_STAGE1_VISUAL_ONLY: compact mobile placeholder */}
           {path !== "/" && (
-            <section aria-label="Lumi AI assistant preview" className="mb-5 flex items-center gap-3 rounded-2xl border border-line bg-brand-soft p-3 md:hidden">
+            <section aria-label={t("assistant.aria")} className="mb-5 flex items-center gap-3 rounded-2xl border border-line bg-brand-soft p-3 md:hidden">
               <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-brand-strong">
                 <Icon name="heart" className="h-5 w-5" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-ink">Meet Lumi</p>
-                <p className="text-xs leading-5 text-muted">Your health companion ? Coming soon</p>
+                <p className="text-sm font-semibold text-ink">{t("assistant.meet")}</p>
+                <p className="text-xs leading-5 text-muted">{t("assistant.mobileComingSoon")}</p>
               </div>
-              <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand-strong">Preview</span>
+              <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand-strong">{t("assistant.preview")}</span>
             </section>
           )}
           {down ? <EmptyState icon="alert" title={t("serverDown")} sub={t("serverDownSub")} /> : <ProfileCtx.Provider value={{ profile, reload }}>{children}</ProfileCtx.Provider>}
@@ -151,6 +151,9 @@ function Layout({ children }: { children: ReactNode }) {
 export default function Shell({ children }: { children: ReactNode }) {
   return <ToastProvider><Layout>{children}</Layout></ToastProvider>;
 }
+
+
+
 
 
 

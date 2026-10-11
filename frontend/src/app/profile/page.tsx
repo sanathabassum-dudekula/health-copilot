@@ -78,7 +78,7 @@ export default function ProfilePage() {
           <Image src="/curamind-logo.jpeg" alt="CuraMind logo" width={520} height={180} className="h-auto w-[145px] max-w-full object-contain sm:w-[175px]" />
           <div>
             <p className="text-xl font-bold text-[#123C46]">CuraMind</p>
-            <p className="text-xs text-muted">Your Health, Our AI, A Better You</p>
+            <p className="text-xs text-muted">{t("profile.brandTagline")}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -101,7 +101,7 @@ export default function ProfilePage() {
               ))}
             </select>
           </label>
-          <Link href="/" className="btn btn-ghost border border-[#B9DED5] bg-white text-[#123C46]">Switch Profile</Link>
+          <Link href="/" className="btn btn-ghost border border-[#B9DED5] bg-white text-[#123C46]">{t("profile.switchProfile")}</Link>
         </div>
         <div className="w-full">
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">{t("profile.title")}</h1>
@@ -125,28 +125,28 @@ export default function ProfilePage() {
               <span aria-hidden="true" className="text-xl">?</span>
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-[#123C46]">Medical Documents</h2>
+              <h2 className="text-lg font-semibold text-[#123C46]">{t("profile.documentsTitle")}</h2>
               <p className="mt-1 max-w-xl text-sm text-muted">
-                Upload prescriptions, lab reports, discharge summaries, and other health records to keep your health information together.
+                {t("profile.documentsDescription")}
               </p>
             </div>
           </div>
           <Link href="/upload" className="btn btn-primary inline-flex shrink-0 items-center justify-center gap-2">
-            <span aria-hidden="true">?</span> Upload a document
+            <span aria-hidden="true">?</span> {t("profile.uploadDocument")}
           </Link>
         </div>
         <div className="mt-5 grid grid-cols-1 gap-3 border-t border-line pt-4 sm:grid-cols-3">
           <div className="rounded-xl bg-surface-2 p-3">
-            <p className="text-sm font-semibold">Prescriptions</p>
-            <p className="mt-1 text-xs text-muted">Medicines and dosage details</p>
+            <p className="text-sm font-semibold">{t("profile.prescriptions")}</p>
+            <p className="mt-1 text-xs text-muted">{t("profile.prescriptionsDescription")}</p>
           </div>
           <div className="rounded-xl bg-surface-2 p-3">
-            <p className="text-sm font-semibold">Lab reports</p>
-            <p className="mt-1 text-xs text-muted">Test results and measurements</p>
+            <p className="text-sm font-semibold">{t("profile.labReports")}</p>
+            <p className="mt-1 text-xs text-muted">{t("profile.labReportsDescription")}</p>
           </div>
           <div className="rounded-xl bg-surface-2 p-3">
-            <p className="text-sm font-semibold">Health records</p>
-            <p className="mt-1 text-xs text-muted">Summaries and diagnoses</p>
+            <p className="text-sm font-semibold">{t("profile.healthRecords")}</p>
+            <p className="mt-1 text-xs text-muted">{t("profile.healthRecordsDescription")}</p>
           </div>
         </div>
       </section>
@@ -217,35 +217,35 @@ export default function ProfilePage() {
       <section className="card p-5 sm:p-7">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold">ABHA &amp; health identity</h2>
-            <p className="mt-1 text-sm text-muted">Your existing ABHA details and linking status.</p>
+            <h2 className="text-lg font-semibold">{t("profile.abhaTitle")}</h2>
+            <p className="mt-1 text-sm text-muted">{t("profile.abhaDescription")}</p>
           </div>
           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
             profile?.abha.linked
               ? "bg-ok-soft text-ok"
               : "bg-surface-2 text-muted ring-1 ring-line"
           }`}>
-            {profile?.abha.linked ? "Linked" : "Not verified"}
+            {profile?.abha.linked ? t("profile.linked") : t("profile.notVerified")}
           </span>
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="rounded-xl border border-line p-4">
-            <p className="text-sm text-muted">ABHA number</p>
+            <p className="text-sm text-muted">{t("profile.abhaNumber")}</p>
             <p className="mt-2 break-all font-medium">{profile?.abha.number || "Not added"}</p>
           </div>
           <div className="rounded-xl border border-line p-4">
-            <p className="text-sm text-muted">ABHA address</p>
+            <p className="text-sm text-muted">{t("profile.abhaAddress")}</p>
             <p className="mt-2 break-all font-medium">{profile?.abha.address || "Not added"}</p>
           </div>
         </div>
 
         <p className="mt-4 text-xs text-muted">
-          The current ABHA flow uses demo verification and does not establish real identity verification.
+          {t("profile.demoDisclaimer")}
         </p>
 
         <div className="mt-4">
-          <a href="/abha" className="btn btn-primary inline-flex">Manage ABHA</a>
+          <a href="/abha" className="btn btn-primary inline-flex">{t("profile.manageAbha")}</a>
         </div>
       </section>
       <section className="card p-5 sm:p-7">
