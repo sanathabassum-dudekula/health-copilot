@@ -147,7 +147,7 @@ export default function ChooseProfilePage() {
               <Link href="/login" className="rounded-xl px-4 py-2.5 text-sm font-medium text-[#57416F] transition-colors hover:bg-[#F5F1FC]">
                 Log In
               </Link>
-              <Link href="/register" className="rounded-xl bg-[#62449B] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#503580]">
+              <Link href="/register" className="rounded-xl bg-[#62449B] px-4 py-2.5 text-sm font-semibold !text-white shadow-sm transition-colors hover:bg-[#503580]">
                 Create Account
               </Link>
             </nav>
