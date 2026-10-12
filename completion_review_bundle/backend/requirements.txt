@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+python-multipart
+sqlalchemy>=2
+psycopg[binary]
+pydantic>=2
+pydantic-settings
+langchain
+langchain-google-genai
+pymupdf
+pillow
+
+boto3
+
+email-validator

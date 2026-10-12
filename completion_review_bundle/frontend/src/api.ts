@@ -1,0 +1,231 @@
+const BASE = "/api";  // proxied to the backend by next.config.ts
+
+
+/**
+ * Per-tab guest visitor ID.
+ * Survives refreshes in the same tab but is not deliberately shared
+ * between tabs. Signed-in requests are still authenticated by the
+ * backend session cookie.
+ */
+function visitId(): string {
+  const storageKey = "visit";
+
+  try {
+    let id = sessionStorage.getItem(storageKey);
+
+    if (!id) {
+      id = crypto.randomUUID();
+      sessionStorage.setItem(storageKey, id);
+    }
+
+    return id;
+  } catch {
+    // Fallback when browser storage is unavailable.
+    return (visitId as { fallbackId?: string }).fallbackId ??=
+      crypto.randomUUID();
+  }
+}
+
+async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  headers.set("X-Visit", visitId());
+  if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
+  const r = await fetch(BASE + path, { ...init, headers });
+  if (!r.ok) {
+    const detail = (await r.json().catch(() => ({}))).detail;  // 422s carry a list of field errors
+    throw new Error((Array.isArray(detail) ? detail[0]?.msg : detail) ?? r.statusText);
+  }
+  return r.status === 204 ? (undefined as T) : r.json();
+}
+const post = <T,>(p: string, body?: unknown) => req<T>(p, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
+
+export type Summary = {
+  headline: string; key_points: string[]; next_steps: string[];
+  abnormal_explanations: { test: string; value: string; status: string; what_it_means: string; common_reasons: string; question_for_doctor: string }[];
+  medicines_explained: { name: string; general_purpose: string; how_to_take: string }[];
+};
+export type FractureInjury = {
+  body_site?: string | null;
+  side?: string | null;
+  injury_type?: string | null;
+  fracture_pattern?: string | null;
+  displacement?: string | null;
+  open_or_closed?: string | null;
+  date_of_injury?: string | null;
+  date_of_report?: string | null;
+  imaging_modality?: string | null;
+  reported_findings?: string | null;
+  treatment_or_procedure?: string | null;
+  immobilization?: string | null;
+  weight_bearing_instruction?: string | null;
+  follow_up_plan?: string | null;
+  source_text: string;
+  confidence: number;
+};
+
+export type WomensHealthExtraction = {
+  pregnancy_status?: string;
+  last_menstrual_period?: string | null;
+  estimated_due_date?: string | null;
+  gestational_age?: string | null;
+  trimester?: string;
+  gravida?: number | null;
+  para?: number | null;
+  pregnancy_complications?: string[];
+  prenatal_visits_or_tests?: string[];
+  delivery_date?: string | null;
+  postpartum_notes?: string[];
+  menstrual_history?: string | null;
+  reproductive_health_notes?: string[];
+  cervical_screening?: string[];
+  breast_health_notes?: string[];
+  menopause_or_fertility_notes?: string[];
+  source_text?: string | null;
+  needs_clinician_review?: boolean;
+};
+
+export type Doc = {
+  id: number; doc_type: string | null; doc_date: string | null; facility: string | null; status: string; source: string;
+  created_at?: string; practitioner?: string | null;
+  summary?: Summary | null;
+  extraction?: {
+    _warnings?: string[];
+    _error?: string;
+    fractures_or_injuries?: FractureInjury[];
+    womens_health?: WomensHealthExtraction | null;
+  } | null;
+  observations?: Obs[]; medications?: Med[]; conditions?: { name: string }[]; allergies?: { substance: string }[];
+};
+export type Obs = { id: number; display_name: string; value_num: number | null; value_text: string | null; unit: string | null; ref_low: number | null; ref_high: number | null; interpretation: string | null; note: string | null };
+export type Med = { id: number; brand_name: string; salt: string | null; strength: string | null; dose_pattern: string | null; timing: string | null; duration_days: number | null };
+export type TimelineItem = { type: string; date: string; document_id: number; title: string; detail: string | null; interpretation?: string; source: string };
+export type Profile = {
+  name: string;
+  age: number | null;
+  language: string;
+  dob: string | null;
+  sex: string | null;
+  blood_group: string | null;
+  allergies_text: string | null;
+  conditions_text: string | null;
+  medicines_text: string | null;
+  previous_records: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  abha: {
+    number: string | null;
+    address: string | null;
+    linked: boolean;
+  };
+  conditions: string[];
+  allergies: string[];
+  current_medicines: {
+    name: string;
+    salt: string | null;
+    dose_pattern: string | null;
+    document_id: number;
+  }[];
+  latest_abnormal: {
+    test: string;
+    value: string | number;
+    unit: string | null;
+    interpretation: string;
+    document_id: number;
+    ref_low: number | null;
+    ref_high: number | null;
+  }[];
+};
+
+export type ProfileFields = {
+  name?: string;
+  dob?: string | null;
+  sex?: string | null;
+  age?: number | null;
+  blood_group?: string | null;
+  allergies_text?: string | null;
+  conditions_text?: string | null;
+  medicines_text?: string | null;
+  previous_records?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  preferred_language?: string;
+};
+
+export type AccountUser = {
+  id: number;
+  email: string;
+  name: string;
+  preferred_language: string;
+};
+
+export const api = {
+  authRegister: (body: { email: string; password: string; name: string }) =>
+    post<{ user: AccountUser }>("/auth/register", body),
+  authLogin: (body: { email: string; password: string }) =>
+    post<{ user: AccountUser }>("/auth/login", body),
+  authMe: () => req<{ user: AccountUser }>("/auth/me"),
+  authLogout: () => post<{ message: string }>("/auth/logout"),
+  profile: () => req<Profile>("/profile"),
+  setLanguage: (preferred_language: string) => req("/profile", { method: "PUT", body: JSON.stringify({ preferred_language }) }),
+  updateProfile: (body: ProfileFields) => req<Profile>("/profile", { method: "PUT", body: JSON.stringify(body) }),
+  upload: (f: File) => { const fd = new FormData(); fd.append("file", f); return req<Doc>("/documents", { method: "POST", body: fd }); },
+  docs: () => req<Doc[]>("/documents"),
+  doc: (id: number) => req<Doc>(`/documents/${id}`),
+  summary: (id: number, lang: string) => req<Summary>(`/documents/${id}/summary?lang=${lang}`),
+  file: async (id: number) => { const b = await (await fetch(`${BASE}/documents/${id}/file`, { headers: { "X-Visit": visitId() } })).blob(); return { url: URL.createObjectURL(b), type: b.type }; },
+  timeline: (types: string[]) => req<TimelineItem[]>(`/profile/timeline?types=${types.join(",")}`),
+  abhaLink: (abha: string) => post<{ demo_otp: string }>("/abha/link", { abha }),
+  abhaVerify: (otp: string) => post("/abha/verify", { otp }),
+  abhaImport: () => post<{ imported_document_ids: number[] }>("/abha/import"),
+  fhir: () => req<unknown>("/profile/fhir"),
+};
+
+
+
+
+
+export type FamilyMember = {
+  oid: string;
+  name: string;
+  dob: string | null;
+  sex: string | null;
+  age: number | null;
+  blood_group: string | null;
+  allergies_text: string | null;
+  conditions_text: string | null;
+  medicines_text: string | null;
+  previous_records: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+};
+
+export type FamilyMemberFields = {
+  name: string;
+  dob?: string | null;
+  sex?: string | null;
+  age?: number | null;
+  blood_group?: string | null;
+  allergies_text?: string | null;
+  conditions_text?: string | null;
+  medicines_text?: string | null;
+  previous_records?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+};
+
+export const familyApi = {
+  list: () => req<{ members: FamilyMember[] }>("/family"),
+  get: (oid: string) =>
+    req<FamilyMember>(`/family/${encodeURIComponent(oid)}`),
+  add: (body: FamilyMemberFields) =>
+    post<FamilyMember>("/family", body),
+  update: (oid: string, body: Partial<FamilyMemberFields>) =>
+    req<FamilyMember>(`/family/${encodeURIComponent(oid)}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  remove: (oid: string) =>
+    req<void>(`/family/${encodeURIComponent(oid)}`, { method: "DELETE" }),
+};
+
+

@@ -1,0 +1,395 @@
+﻿/* TRINEXA premium palette v2 */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #F6F3FC; --surface: #FFFFFF; --surface-2: #EEE8F8; --ink: #37304F; --muted: #716985; --line: #E3DCEE;
+  --brand: #6654A3; --brand-strong: #4C3D83; --brand-soft: #E9E2F8; --on-brand: #FFFFFF;
+  --cura-blue: #8173C6; --cura-teal: #A99BD8; --cura-gradient: linear-gradient(115deg, #51427F 0%, #7968B5 55%, #B5A7DE 100%);
+  --ok: #287448; --ok-soft: #E0F2E5; --low: #397A91; --low-soft: #E0F0F5; --high: #99631E; --high-soft: #F8EED9;
+  --crit: #B74444; --crit-soft: #F9E4E1; --med: #7167A8; --med-soft: #EEEBFA; --dx: #A64E78; --dx-soft: #F7E7EF;
+  --shadow: 0 1px 2px rgb(22 101 52 / .05), 0 10px 28px -14px rgb(22 101 52 / .16);
+  color-scheme: light;
+}
+.dark {
+  --bg: #171421; --surface: #211D30; --surface-2: #302A43; --ink: #F0ECFA; --muted: #C0B8D3; --line: #423953;
+  --brand: #B6A8F0; --brand-strong: #D2C8FF; --brand-soft: #39304F; --on-brand: #211936;
+  --cura-blue: #B8ACFF; --cura-teal: #C1B2ED; --cura-gradient: linear-gradient(115deg, #A596E8 0%, #9B9CE5 55%, #D0B8EF 100%);
+  --ok: #86D6A0; --ok-soft: #203D2A; --low: #83CBE5; --low-soft: #203744; --high: #F0C477; --high-soft: #40331D;
+  --crit: #FF9994; --crit-soft: #442525; --med: #C2B6FF; --med-soft: #302747; --dx: #F0A4C8; --dx-soft: #45283A;
+  --shadow: 0 1px 2px rgb(0 0 0 / .4), 0 10px 28px -14px rgb(0 0 0 / .6);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg); --color-surface: var(--surface); --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink); --color-muted: var(--muted); --color-line: var(--line);
+  --color-brand: var(--brand); --color-brand-strong: var(--brand-strong); --color-brand-soft: var(--brand-soft);
+  --color-on-brand: var(--on-brand);
+  --color-ok: var(--ok); --color-ok-soft: var(--ok-soft); --color-low: var(--low); --color-low-soft: var(--low-soft);
+  --color-high: var(--high); --color-high-soft: var(--high-soft); --color-crit: var(--crit); --color-crit-soft: var(--crit-soft);
+  --color-med: var(--med); --color-med-soft: var(--med-soft); --color-dx: var(--dx); --color-dx-soft: var(--dx-soft);
+  --font-sans: Arial, Helvetica, "Noto Sans Devanagari", "Noto Sans Telugu", sans-serif;
+  --font-display: var(--font-sans);
+  --shadow-card: var(--shadow);
+}
+
+html { scroll-behavior: smooth; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 6px; }
+
+@layer components {
+  .card { @apply rounded-2xl border border-line bg-surface shadow-card; }
+  .btn { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition
+    active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primary { @apply bg-brand text-on-brand hover:bg-brand-strong hover:text-on-brand; }
+  .btn-soft { @apply bg-brand-soft text-brand-strong hover:brightness-95; }
+  .btn-ghost { @apply border border-line bg-surface text-ink hover:bg-surface-2; }
+  .input { @apply min-h-11 w-full rounded-xl border border-line bg-surface px-3.5 text-sm text-ink
+    placeholder:text-muted/70 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30; }
+  .eyebrow { @apply text-xs font-semibold uppercase tracking-[.14em] text-muted; }
+  .h-display { font-family: var(--font-display); font-optical-sizing: auto; letter-spacing: -.01em; }
+}
+
+
+@keyframes fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes shimmer { to { background-position: -200% 0; } }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes slide-in { from { opacity: 0; transform: translateY(12px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes indeterminate { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+@keyframes pop { 0% { transform: scale(.4); opacity: 0; } 70% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
+
+.reveal { animation: fade-up .5s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--d, 0) * 70ms); }
+.skeleton { background: linear-gradient(90deg, var(--line) 25%, var(--surface-2) 50%, var(--line) 75%); background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite; border-radius: .75rem; }
+.ecg { stroke-dasharray: 700; stroke-dashoffset: 700; animation: draw 4.5s linear infinite; }
+.indeterminate::after { content: ""; position: absolute; inset: 0; width: 40%; border-radius: inherit;
+  background: var(--brand); animation: indeterminate 1.3s ease-in-out infinite; }
+.pop { animation: pop .45s cubic-bezier(.2,.9,.3,1.3) both; }
+.toast { animation: slide-in .3s ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+  .ecg { stroke-dashoffset: 0; }
+}
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff; color: #000; }
+  .app-shell { display: block !important; }  /* drop the hidden sidebar's grid column */
+  *, *::before, *::after { animation: none !important; }  /* fade-in cards would print blank mid-animation */
+  .card { box-shadow: none; break-inside: avoid; }
+}
+
+
+
+/* CuraMind brand accents */
+.cura-gradient {
+  background: var(--cura-gradient);
+}
+.cura-brand-text {
+  background: var(--cura-gradient);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}/* Curamind brand theme */
+:root {
+  --bg: #F6F3FC;
+  --surface: #FFFFFF;
+  --surface-2: #EEE8F8;
+  --ink: #37304F;
+  --muted: #716985;
+  --line: #E3DCEE;
+  --brand: #6654A3;
+  --brand-strong: #4C3D83;
+  --brand-soft: #E9E2F8;
+  --mint: #A99BD8;
+  --on-brand: #FFFFFF;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Inter', sans-serif;
+}
+
+button, input, select, textarea {
+  font: inherit;
+}
+
+aside, .sidebar {
+  background: #F6F3FC;
+  border-color: var(--line);
+}
+
+header, .topbar {
+  background: #FFFFFF;
+  border-color: var(--line);
+}
+
+a {
+  color: var(--brand);
+}
+
+a:hover {
+  color: #4C3D83;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--mint);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: #E9E2F8;
+  color: #37304F;
+}
+
+
+/* CuraMind profile chooser responsive layout fix */
+.profile-chooser {
+  width: 100%;
+  max-width: 1100px;
+  margin-inline: auto;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.profile-chooser img {
+  display: block;
+  width: 150px;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+@media (min-width: 640px) {
+  .profile-chooser img { width: 175px; }
+}
+
+.profile-chooser h1 {
+  color: #37304F;
+  background: transparent;
+  background-color: transparent;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.profile-chooser h1 mark,
+.profile-chooser h1 span {
+  background-color: transparent;
+  color: inherit;
+}
+
+@media (max-width: 640px) {
+  .profile-chooser {
+    padding: 16px;
+  }
+}
+
+
+/* CuraMind primary actions: mint green with white text */
+.btn-primary {
+  background-color: #6654A3 !important;
+  color: #FFFFFF !important;
+  border-color: #6654A3 !important;
+}
+.btn-primary:hover {
+  background-color: #4C3D83 !important;
+  color: #FFFFFF !important;
+}
+.btn-primary svg { color: #FFFFFF; }
+
+
+/* CuraMind balanced contrast refinement */
+:root {
+  --muted: #716985;
+  --ink: #37304F;
+  --line: #E3DCEE;
+}
+
+/* Make secondary text easier to read */
+.text-muted,
+.text-slate-500,
+.text-slate-400 {
+  color: #716985 !important;
+}
+
+/* Strong, consistent headings */
+h1, h2, h3, h4 {
+  color: #37304F;
+}
+
+/* Supporting copy should remain readable */
+p {
+  color: inherit;
+}
+
+/* Keep cards light but give their edges more definition */
+.border-line,
+.border {
+  border-color: #E3DCEE;
+}
+
+/* Darker inactive navigation text */
+nav a {
+  color: #4C3D83;
+}
+
+nav a:hover {
+  color: #4C3D83;
+}
+
+/* Keep the selected navigation item mint-green */
+nav a[aria-current="page"] {
+  color: #4C3D83;
+}
+
+/* Primary actions retain white text on green */
+.btn-primary {
+  background-color: #6654A3 !important;
+  color: #FFFFFF !important;
+  border-color: #6654A3 !important;
+}
+
+.btn-primary:hover {
+  background-color: #4C3D83 !important;
+  color: #FFFFFF !important;
+}
+
+
+
+/* CuraMind layout refinement — appended safely */
+:root {
+  --bg: #F6F3FC;
+  --surface: #FFFFFF;
+  --surface-2: #EEE8F8;
+  --ink: #37304F;
+  --muted: #716985;
+  --line: #E3DCEE;
+  --brand: #6654A3;
+  --brand-strong: #4C3D83;
+  --brand-soft: #D8F1E8;
+  --on-brand: #FFFFFF;
+  --shadow: 0 2px 6px rgb(55 48 79 / .04), 0 14px 36px -20px rgb(55 48 79 / .22);
+}
+
+.dark {
+  --bg: #171421;
+  --surface: #211D30;
+  --surface-2: #302A43;
+  --ink: #F0ECFA;
+  --muted: #C0B8D3;
+  --line: #423953;
+  --brand: #A99BD8;
+  --brand-strong: #D2C8FF;
+  --brand-soft: #39304F;
+  --on-brand: #211936;
+}
+
+body {
+  min-height: 100vh;
+  letter-spacing: -0.01em;
+}
+
+.app-shell {
+  background: var(--bg);
+}
+
+.card {
+  border-radius: 1.25rem;
+  box-shadow: var(--shadow);
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+
+.btn {
+  border-radius: .85rem;
+  font-weight: 650;
+}
+
+.input {
+  border-radius: .85rem;
+}
+
+aside {
+  border-right-color: var(--line);
+}
+
+@media (min-width: 768px) {
+  .app-shell.md\:grid {
+    min-height: 100vh;
+  }
+
+  .app-shell aside {
+    padding: 1.35rem;
+  }
+
+  .app-shell main {
+    max-width: 1180px;
+  }
+}
+
+::selection {
+  background: #BFEBDD;
+  color: #123B35;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
+  }
+}
+
+/* Multilingual font adjustment */
+.app-shell.lang-hi { font-size: 15px; }
+.app-shell.lang-te { font-size: 15px; }
+.app-shell.lang-ta { font-size: 15px; }
+
+.app-shell.lang-hi h1,
+.app-shell.lang-te h1,
+.app-shell.lang-ta h1 { line-height: 1.3; }
+
+.app-shell.lang-hi h2,
+.app-shell.lang-te h2,
+.app-shell.lang-ta h2 { line-height: 1.35; }
+
+/* Final TRINEXA lavender theme: buttons and interactive controls */
+:root {
+  --brand: #6654A3;
+  --brand-strong: #4C3D83;
+  --brand-soft: #E9E2F8;
+  --cura-blue: #8173C6;
+  --cura-teal: #A99BD8;
+  --mint: #A99BD8;
+}
+
+.btn-primary,
+button[class*="bg-teal"],
+button[class*="bg-emerald"],
+button[class*="bg-green"],
+a[class*="bg-teal"],
+a[class*="bg-emerald"],
+a[class*="bg-green"] {
+  background-color: #6654A3 !important;
+  color: #FFFFFF !important;
+  border-color: #6654A3 !important;
+}
+
+button[class*="text-teal"],
+button[class*="text-emerald"],
+button[class*="text-green"],
+a[class*="text-teal"],
+a[class*="text-emerald"],
+a[class*="text-green"] {
+  color: #4C3D83 !important;
+}
+
+.btn-primary:hover {
+  background-color: #4C3D83 !important;
+  border-color: #4C3D83 !important;
+}
