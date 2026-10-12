@@ -139,15 +139,15 @@ export default function ChooseProfilePage() {
         </aside>
 
         <div className="min-w-0 space-y-6">
-          <header className="flex flex-wrap items-center justify-between gap-3">
+          <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#E8DFF3] bg-white/95 p-3 shadow-sm sm:p-4">
             <nav aria-label="Account access" className="flex flex-wrap items-center gap-2">
-              <Link href="/" className="rounded-xl border border-line bg-white px-3 py-2 text-sm font-medium text-[#123C46] hover:bg-brand-soft">
+              <Link href="/" className="rounded-xl border border-[#E5D9F2] bg-[#F8F5FC] px-4 py-2.5 text-sm font-medium text-[#57416F] transition-colors hover:bg-[#F0E8FA]">
                 Continue as Guest
               </Link>
-              <Link href="/login" className="rounded-xl px-3 py-2 text-sm font-medium text-[#123C46] hover:bg-brand-soft">
+              <Link href="/login" className="rounded-xl px-4 py-2.5 text-sm font-medium text-[#57416F] transition-colors hover:bg-[#F5F1FC]">
                 Log In
               </Link>
-              <Link href="/register" className="rounded-xl bg-brand px-3 py-2 text-sm font-semibold text-white hover:opacity-90">
+              <Link href="/register" className="rounded-xl bg-[#62449B] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#503580]">
                 Create Account
               </Link>
             </nav>
