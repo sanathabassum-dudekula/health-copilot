@@ -89,21 +89,24 @@ function Layout({ children }: { children: ReactNode }) {
     let cancelled = false;
     setAuthChecking(true);
 
+    // Signed-in users use their account session. If no account session exists,
+    // allow the backend's X-Visit guest profile to access the same app screens.
     api.authMe()
       .then(({ user }) => {
         if (cancelled) return;
         setAccount(user);
         return api.profile().then((p) => {
-          if (!cancelled) {
-            setProfile(p);
-            setDown(false);
-          }
+          if (!cancelled) { setProfile(p); setDown(false); }
         });
       })
-      .catch(() => {
-        if (!cancelled) {
-          setAccount(null);
-          router.replace("/login");
+      .catch(async () => {
+        if (cancelled) return;
+        setAccount(null);
+        try {
+          const p = await api.profile();
+          if (!cancelled) { setProfile(p); setDown(false); }
+        } catch {
+          if (!cancelled) { setDown(true); }
         }
       })
       .finally(() => {

@@ -1,4 +1,4 @@
-﻿from datetime import date
+from datetime import date
 from secrets import token_hex
 
 from fastapi import APIRouter, Depends, HTTPException

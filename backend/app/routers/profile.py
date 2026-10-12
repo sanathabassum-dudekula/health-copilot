@@ -1,4 +1,4 @@
-﻿from datetime import date
+from datetime import date
 
 from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel, Field

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -288,7 +288,7 @@ export default function ChooseProfilePage() {
           </span>
 
           <div className="flex-1">
-            <h2 className="text-xl font-semibold">Family profiles</h2>
+            <h2 className="text-xl font-semibold">Profiles</h2>
             <p className="mt-1 text-sm leading-6 text-muted">
               {t("home.familyText")}
             </p>
@@ -351,7 +351,7 @@ export default function ChooseProfilePage() {
           }}
         >
           <Icon name="plus" className="h-4 w-4" />
-          {showAdd ? t("home.closeForm") : t("home.addFamily")}
+          {showAdd ? t("home.closeForm") : "+ Add profile"}
         </button>
 
         {showAdd && (

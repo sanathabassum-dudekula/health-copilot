@@ -1,17 +1,28 @@
-﻿const BASE = "/api";  // proxied to the backend by next.config.ts
+const BASE = "/api";  // proxied to the backend by next.config.ts
 
-// Per-tab visitor id: survives refresh, gone when the tab closes, so each tab sees only its own uploads.
-function visitId() {
+
+/**
+ * Per-tab guest visitor ID.
+ * Survives refreshes in the same tab but is not deliberately shared
+ * between tabs. Signed-in requests are still authenticated by the
+ * backend session cookie.
+ */
+function visitId(): string {
+  const storageKey = "visit";
+
   try {
-    let v = localStorage.getItem("visit");
-    if (!v) {
-      // Preserve the current tab's existing profile ID when possible.
-      v = sessionStorage.getItem("visit") || crypto.randomUUID();
-      localStorage.setItem("visit", v);
+    let id = sessionStorage.getItem(storageKey);
+
+    if (!id) {
+      id = crypto.randomUUID();
+      sessionStorage.setItem(storageKey, id);
     }
-    return v;
+
+    return id;
   } catch {
-    return (visitId as { v?: string }).v ??= crypto.randomUUID();
+    // Fallback when browser storage is unavailable.
+    return (visitId as { fallbackId?: string }).fallbackId ??=
+      crypto.randomUUID();
   }
 }
 
