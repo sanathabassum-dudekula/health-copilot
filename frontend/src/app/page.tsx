@@ -19,8 +19,6 @@ export default function ChooseProfilePage() {
   const [bloodGroup, setBloodGroup] = useState("");
   const [allergies, setAllergies] = useState("");
   const [conditions, setConditions] = useState("");
-  const [medicines, setMedicines] = useState("");
-  const [previousRecords, setPreviousRecords] = useState("");
   const [emergencyName, setEmergencyName] = useState("");
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [notice, setNotice] = useState("");
@@ -71,12 +69,6 @@ export default function ChooseProfilePage() {
         ...(conditions.trim()
           ? { conditions_text: conditions.trim() }
           : {}),
-        ...(medicines.trim()
-          ? { medicines_text: medicines.trim() }
-          : {}),
-        ...(previousRecords.trim()
-          ? { previous_records: previousRecords.trim() }
-          : {}),
         ...(emergencyName.trim()
           ? { emergency_contact_name: emergencyName.trim() }
           : {}),
@@ -94,8 +86,6 @@ export default function ChooseProfilePage() {
       setBloodGroup("");
       setAllergies("");
       setConditions("");
-      setMedicines("");
-      setPreviousRecords("");
       setEmergencyName("");
       setEmergencyPhone("");
 
@@ -317,7 +307,7 @@ export default function ChooseProfilePage() {
                     <p className="truncate font-medium">{member.name}</p>
                     <p className="text-sm text-muted">
                       {member.dob || "Date of birth not added"}
-                      {member.sex ? ` · ${member.sex}` : ""}
+                      {member.sex ? ` Â· ${member.sex}` : ""}
                     </p>
                   </div>
                 </div>
@@ -445,7 +435,7 @@ export default function ChooseProfilePage() {
               <h4 className="text-sm font-semibold">{t("home.medicalInfo")}</h4>
 
               <label className="block space-y-1.5 text-sm font-medium">
-                Allergies
+                Allergies (optional)
                 <textarea
                   value={allergies}
                   onChange={(event) => setAllergies(event.target.value)}
@@ -465,30 +455,6 @@ export default function ChooseProfilePage() {
                   maxLength={4000}
                   className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-ink"
                   placeholder={t("home.conditionsPlaceholder")}
-                />
-              </label>
-
-              <label className="block space-y-1.5 text-sm font-medium">
-                {t("home.medicines")}
-                <textarea
-                  value={medicines}
-                  onChange={(event) => setMedicines(event.target.value)}
-                  rows={2}
-                  maxLength={3000}
-                  className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-ink"
-                  placeholder={t("home.medicinesPlaceholder")}
-                />
-              </label>
-
-              <label className="block space-y-1.5 text-sm font-medium">
-                {t("home.previousRecords")}
-                <textarea
-                  value={previousRecords}
-                  onChange={(event) => setPreviousRecords(event.target.value)}
-                  rows={3}
-                  maxLength={4000}
-                  className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-ink"
-                  placeholder={t("home.previousRecordsPlaceholder")}
                 />
               </label>
             </div>

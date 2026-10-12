@@ -1,4 +1,4 @@
-﻿import re
+import re
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr, Field
@@ -63,9 +63,13 @@ def register(
 
     if user is None:
         user = User()
-        user.profile = Profile(name=body.name.strip() or "My Profile")
         db.add(user)
-    elif user.profile and (not user.profile.name or user.profile.name == "Guest"):
+
+    # Every registered account must have its own profile.
+    # This also repairs guest accounts that do not yet have one.
+    if user.profile is None:
+        user.profile = Profile(name=body.name.strip() or "My Profile")
+    elif not user.profile.name or user.profile.name == "Guest":
         user.profile.name = body.name.strip() or "My Profile"
 
     user.email = email

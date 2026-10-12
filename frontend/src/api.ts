@@ -8,21 +8,28 @@ const BASE = "/api";  // proxied to the backend by next.config.ts
  * backend session cookie.
  */
 function visitId(): string {
-  const storageKey = "visit";
-
+  // Keep guest identity across refreshes, browser tabs, and browser restarts.
+  // Authenticated requests are still identified by the secure session cookie.
+  const storageKey = "curamind_visit";
+  const fallback = visitId as { fallbackId?: string };
   try {
-    let id = sessionStorage.getItem(storageKey);
-
-    if (!id) {
+    let id = localStorage.getItem(storageKey);
+    if (!id || !/^[0-9a-f-]{36}$/i.test(id)) {
       id = crypto.randomUUID();
-      sessionStorage.setItem(storageKey, id);
+      localStorage.setItem(storageKey, id);
     }
-
     return id;
   } catch {
-    // Fallback when browser storage is unavailable.
-    return (visitId as { fallbackId?: string }).fallbackId ??=
-      crypto.randomUUID();
+    try {
+      let id = sessionStorage.getItem(storageKey);
+      if (!id || !/^[0-9a-f-]{36}$/i.test(id)) {
+        id = crypto.randomUUID();
+        sessionStorage.setItem(storageKey, id);
+      }
+      return id;
+    } catch {
+      return fallback.fallbackId ??= crypto.randomUUID();
+    }
   }
 }
 
@@ -172,7 +179,18 @@ export const api = {
   docs: () => req<Doc[]>("/documents"),
   doc: (id: number) => req<Doc>(`/documents/${id}`),
   summary: (id: number, lang: string) => req<Summary>(`/documents/${id}/summary?lang=${lang}`),
-  file: async (id: number) => { const b = await (await fetch(`${BASE}/documents/${id}/file`, { headers: { "X-Visit": visitId() } })).blob(); return { url: URL.createObjectURL(b), type: b.type }; },
+  file: async (id: number) => {
+    const response = await fetch(`${BASE}/documents/${id}/file`, {
+      headers: { "X-Visit": visitId() },
+      credentials: "same-origin",
+    });
+    if (!response.ok) {
+      const detail = (await response.json().catch(() => ({}))).detail;
+      throw new Error(typeof detail === "string" ? detail : `Could not load document (${response.status}).`);
+    }
+    const blob = await response.blob();
+    return { url: URL.createObjectURL(blob), type: blob.type };
+  },
   timeline: (types: string[]) => req<TimelineItem[]>(`/profile/timeline?types=${types.join(",")}`),
   abhaLink: (abha: string) => post<{ demo_otp: string }>("/abha/link", { abha }),
   abhaVerify: (otp: string) => post("/abha/verify", { otp }),

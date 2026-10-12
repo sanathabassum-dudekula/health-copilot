@@ -121,6 +121,13 @@ export default function RegisterPage() {
             Sign in
           </Link>
         </p>
+
+        <p className="text-center text-sm text-muted">
+          Prefer not to register?{" "}
+          <Link href="/" className="font-semibold text-brand-strong underline">
+            Continue as guest
+          </Link>
+        </p>
       </section>
     </div>
   );
