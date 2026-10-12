@@ -17,8 +17,6 @@ export default function ChooseProfilePage() {
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("");
   const [bloodGroup, setBloodGroup] = useState("");
-  const [allergies, setAllergies] = useState("");
-  const [conditions, setConditions] = useState("");
   const [emergencyName, setEmergencyName] = useState("");
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [notice, setNotice] = useState("");
@@ -63,12 +61,6 @@ export default function ChooseProfilePage() {
           ? { age: Number(age) }
           : {}),
         ...(bloodGroup.trim() ? { blood_group: bloodGroup.trim() } : {}),
-        ...(allergies.trim()
-          ? { allergies_text: allergies.trim() }
-          : {}),
-        ...(conditions.trim()
-          ? { conditions_text: conditions.trim() }
-          : {}),
         ...(emergencyName.trim()
           ? { emergency_contact_name: emergencyName.trim() }
           : {}),
@@ -84,8 +76,6 @@ export default function ChooseProfilePage() {
       setAge("");
       setGender("");
       setBloodGroup("");
-      setAllergies("");
-      setConditions("");
       setEmergencyName("");
       setEmergencyPhone("");
 
@@ -149,7 +139,18 @@ export default function ChooseProfilePage() {
         </aside>
 
         <div className="min-w-0 space-y-6">
-          <header className="flex justify-end">
+          <header className="flex flex-wrap items-center justify-between gap-3">
+            <nav aria-label="Account access" className="flex flex-wrap items-center gap-2">
+              <Link href="/" className="rounded-xl border border-line bg-white px-3 py-2 text-sm font-medium text-[#123C46] hover:bg-brand-soft">
+                Continue as Guest
+              </Link>
+              <Link href="/login" className="rounded-xl px-3 py-2 text-sm font-medium text-[#123C46] hover:bg-brand-soft">
+                Log In
+              </Link>
+              <Link href="/register" className="rounded-xl bg-brand px-3 py-2 text-sm font-semibold text-white hover:opacity-90">
+                Create Account
+              </Link>
+            </nav>
             <label className="flex items-center gap-2 text-sm font-medium text-[#123C46]">
               <span>Language</span>
 
@@ -307,7 +308,7 @@ export default function ChooseProfilePage() {
                     <p className="truncate font-medium">{member.name}</p>
                     <p className="text-sm text-muted">
                       {member.dob || "Date of birth not added"}
-                      {member.sex ? ` Â· ${member.sex}` : ""}
+                      {member.sex ? ` · ${member.sex}` : ""}
                     </p>
                   </div>
                 </div>
@@ -430,35 +431,6 @@ export default function ChooseProfilePage() {
                 </label>
               </div>
             </div>
-
-            <div className="space-y-4 border-t border-line pt-4">
-              <h4 className="text-sm font-semibold">{t("home.medicalInfo")}</h4>
-
-              <label className="block space-y-1.5 text-sm font-medium">
-                Allergies (optional)
-                <textarea
-                  value={allergies}
-                  onChange={(event) => setAllergies(event.target.value)}
-                  rows={2}
-                  maxLength={2000}
-                  className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-ink"
-                  placeholder={t("home.allergiesPlaceholder")}
-                />
-              </label>
-
-              <label className="block space-y-1.5 text-sm font-medium">
-                {t("home.conditions")}
-                <textarea
-                  value={conditions}
-                  onChange={(event) => setConditions(event.target.value)}
-                  rows={3}
-                  maxLength={4000}
-                  className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-ink"
-                  placeholder={t("home.conditionsPlaceholder")}
-                />
-              </label>
-            </div>
-
             <div className="rounded-2xl border border-line bg-brand-soft p-4">
               <h4 className="font-semibold">{t("home.emergencyContact")}</h4>
               <p className="mt-1 text-sm text-muted">
