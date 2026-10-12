@@ -11,3 +11,5 @@ pymupdf
 pillow
 
 boto3
+
+email-validator

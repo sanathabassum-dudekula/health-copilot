@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     )
 
     DATABASE_URL: str = "sqlite:///dev.db"
+    AUTH_SECRET: str = ""
     VISION_MODEL: str = "google_genai:gemini-3.1-flash-lite"
     TEXT_MODEL: str = "google_genai:gemini-3.1-flash-lite"
     LLM_API_KEY: str = ""

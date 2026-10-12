@@ -1,4 +1,4 @@
-
+﻿
 from datetime import date, datetime
 
 from sqlalchemy import (
@@ -25,6 +25,8 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     preferred_language: Mapped[str] = mapped_column(String, default="en")
+    email: Mapped[str | None] = mapped_column(String(320), unique=True, index=True, nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(String(256), nullable=True)
 
     profile: Mapped["Profile"] = relationship(
         back_populates="user", cascade=CASCADE, uselist=False
@@ -63,6 +65,14 @@ class Profile(Base):
     name: Mapped[str] = mapped_column(String)
     dob: Mapped[date | None] = mapped_column(Date)
     sex: Mapped[str | None] = mapped_column(String)
+    age: Mapped[int | None] = mapped_column(Integer)
+    blood_group: Mapped[str | None] = mapped_column(String)
+    allergies_text: Mapped[str | None] = mapped_column(String)
+    conditions_text: Mapped[str | None] = mapped_column(String)
+    medicines_text: Mapped[str | None] = mapped_column(String)
+    previous_records: Mapped[str | None] = mapped_column(String)
+    emergency_contact_name: Mapped[str | None] = mapped_column(String)
+    emergency_contact_phone: Mapped[str | None] = mapped_column(String)
 
     abha_number: Mapped[str | None] = mapped_column(String)
     abha_address: Mapped[str | None] = mapped_column(String)
@@ -198,3 +208,19 @@ class Allergy(Base):
 
     substance: Mapped[str] = mapped_column(String)
     reaction: Mapped[str | None] = mapped_column(String)
+
+
+
+
+class AuthSession(Base):
+    __tablename__ = "auth_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now()
+    )

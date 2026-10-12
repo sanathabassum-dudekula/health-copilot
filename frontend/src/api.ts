@@ -89,16 +89,74 @@ export type Obs = { id: number; display_name: string; value_num: number | null; 
 export type Med = { id: number; brand_name: string; salt: string | null; strength: string | null; dose_pattern: string | null; timing: string | null; duration_days: number | null };
 export type TimelineItem = { type: string; date: string; document_id: number; title: string; detail: string | null; interpretation?: string; source: string };
 export type Profile = {
-  name: string; age: number | null; language: string; abha: { number: string | null; address: string | null; linked: boolean };
-  conditions: string[]; allergies: string[]; current_medicines: { name: string; salt: string | null; dose_pattern: string | null; document_id: number }[];
-  latest_abnormal: { test: string; value: string | number; unit: string | null; interpretation: string; document_id: number; ref_low: number | null; ref_high: number | null }[];
-  dob: string | null; sex: string | null;
+  name: string;
+  age: number | null;
+  language: string;
+  dob: string | null;
+  sex: string | null;
+  blood_group: string | null;
+  allergies_text: string | null;
+  conditions_text: string | null;
+  medicines_text: string | null;
+  previous_records: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  abha: {
+    number: string | null;
+    address: string | null;
+    linked: boolean;
+  };
+  conditions: string[];
+  allergies: string[];
+  current_medicines: {
+    name: string;
+    salt: string | null;
+    dose_pattern: string | null;
+    document_id: number;
+  }[];
+  latest_abnormal: {
+    test: string;
+    value: string | number;
+    unit: string | null;
+    interpretation: string;
+    document_id: number;
+    ref_low: number | null;
+    ref_high: number | null;
+  }[];
+};
+
+export type ProfileFields = {
+  name?: string;
+  dob?: string | null;
+  sex?: string | null;
+  age?: number | null;
+  blood_group?: string | null;
+  allergies_text?: string | null;
+  conditions_text?: string | null;
+  medicines_text?: string | null;
+  previous_records?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  preferred_language?: string;
+};
+
+export type AccountUser = {
+  id: number;
+  email: string;
+  name: string;
+  preferred_language: string;
 };
 
 export const api = {
+  authRegister: (body: { email: string; password: string; name: string }) =>
+    post<{ user: AccountUser }>("/auth/register", body),
+  authLogin: (body: { email: string; password: string }) =>
+    post<{ user: AccountUser }>("/auth/login", body),
+  authMe: () => req<{ user: AccountUser }>("/auth/me"),
+  authLogout: () => post<{ message: string }>("/auth/logout"),
   profile: () => req<Profile>("/profile"),
   setLanguage: (preferred_language: string) => req("/profile", { method: "PUT", body: JSON.stringify({ preferred_language }) }),
-  updateProfile: (body: { name?: string; dob?: string; sex?: string; preferred_language?: string }) => req<Profile>("/profile", { method: "PUT", body: JSON.stringify(body) }),
+  updateProfile: (body: ProfileFields) => req<Profile>("/profile", { method: "PUT", body: JSON.stringify(body) }),
   upload: (f: File) => { const fd = new FormData(); fd.append("file", f); return req<Doc>("/documents", { method: "POST", body: fd }); },
   docs: () => req<Doc[]>("/documents"),
   doc: (id: number) => req<Doc>(`/documents/${id}`),
@@ -111,5 +169,52 @@ export const api = {
   fhir: () => req<unknown>("/profile/fhir"),
 };
 
+
+
+
+
+export type FamilyMember = {
+  oid: string;
+  name: string;
+  dob: string | null;
+  sex: string | null;
+  age: number | null;
+  blood_group: string | null;
+  allergies_text: string | null;
+  conditions_text: string | null;
+  medicines_text: string | null;
+  previous_records: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+};
+
+export type FamilyMemberFields = {
+  name: string;
+  dob?: string | null;
+  sex?: string | null;
+  age?: number | null;
+  blood_group?: string | null;
+  allergies_text?: string | null;
+  conditions_text?: string | null;
+  medicines_text?: string | null;
+  previous_records?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+};
+
+export const familyApi = {
+  list: () => req<{ members: FamilyMember[] }>("/family"),
+  get: (oid: string) =>
+    req<FamilyMember>(`/family/${encodeURIComponent(oid)}`),
+  add: (body: FamilyMemberFields) =>
+    post<FamilyMember>("/family", body),
+  update: (oid: string, body: Partial<FamilyMemberFields>) =>
+    req<FamilyMember>(`/family/${encodeURIComponent(oid)}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  remove: (oid: string) =>
+    req<void>(`/family/${encodeURIComponent(oid)}`, { method: "DELETE" }),
+};
 
 

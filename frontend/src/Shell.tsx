@@ -1,10 +1,10 @@
-﻿"use client";
+"use client";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, Profile } from "./api";
+import { api, Profile, AccountUser } from "./api";
 import { ToastProvider } from "./components/Toast";
 import Icon, { IconName } from "./components/Icon";
 import { EmptyState, Segmented } from "./components/ui";
@@ -66,11 +66,62 @@ function Controls() {
 
 function Layout({ children }: { children: ReactNode }) {
   const { t, i18n } = useTranslation();
+  const path = usePathname();
+  const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [down, setDown] = useState(false);
-  const reload = useCallback(() => { api.profile().then((p) => { setProfile(p); setDown(false); }).catch(() => setDown(true)); }, []);
-  useEffect(reload, [reload]);
-  const path = usePathname();
+  const [account, setAccount] = useState<AccountUser | null>(null);
+  const [authChecking, setAuthChecking] = useState(true);
+
+  const reload = useCallback(() => {
+    api.profile()
+      .then((p) => { setProfile(p); setDown(false); })
+      .catch(() => setDown(true));
+  }, []);
+
+  useEffect(() => {
+    const publicPage = path === "/" || path === "/login" || path === "/register";
+    if (publicPage) {
+      setAuthChecking(false);
+      return;
+    }
+
+    let cancelled = false;
+    setAuthChecking(true);
+
+    api.authMe()
+      .then(({ user }) => {
+        if (cancelled) return;
+        setAccount(user);
+        return api.profile().then((p) => {
+          if (!cancelled) {
+            setProfile(p);
+            setDown(false);
+          }
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAccount(null);
+          router.replace("/login");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setAuthChecking(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [path, router]);
+
+  async function signOut() {
+    try {
+      await api.authLogout();
+    } finally {
+      setAccount(null);
+      setProfile(null);
+      router.replace("/login");
+    }
+  }
   const active = (n: (typeof NAV)[number]) => (n.to === "/" ? path === n.to : path.startsWith(n.to));
   const link = (on: boolean) =>
     `flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition ${on ? "bg-brand-soft text-brand-strong" : "text-muted hover:bg-surface-2 hover:text-ink"}`;
@@ -111,13 +162,29 @@ function Layout({ children }: { children: ReactNode }) {
               {abha?.linked ? `ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ ${t("abhaLinked")}` : abha?.number || abha?.address ? t("abhaPending") : t("abhaNotLinked")}
             </p>
           </Link>
+          {account && (
+            <div className="space-y-2 rounded-xl border border-line p-3">
+              <p className="truncate text-xs text-muted">{account.email}</p>
+              <button type="button" onClick={signOut} className="btn btn-ghost w-full">
+                Sign out
+              </button>
+            </div>
+          )}
           <Controls />
         </div>
       </aside>)}
 
       <div className={`min-w-0 ${path === "/" ? "pb-8" : "pb-28 md:pb-12"}`}>
         <header className="no-print sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-bg/85 px-4 py-3 backdrop-blur md:hidden">
-          <Logo /><Controls />
+          <Logo />
+          <div className="flex items-center gap-2">
+            {account && (
+              <button type="button" onClick={signOut} className="btn btn-ghost !min-h-9 !px-2">
+                Sign out
+              </button>
+            )}
+            <Controls />
+          </div>
         </header>
         <main id="main" className="mx-auto max-w-5xl px-4 py-6 md:px-10 md:py-10">
           {/* LUMI_STAGE1_VISUAL_ONLY: compact mobile placeholder */}
@@ -133,7 +200,7 @@ function Layout({ children }: { children: ReactNode }) {
               <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand-strong">{t("assistant.preview")}</span>
             </section>
           )}
-          {down ? <EmptyState icon="alert" title={t("serverDown")} sub={t("serverDownSub")} /> : <ProfileCtx.Provider value={{ profile, reload }}>{children}</ProfileCtx.Provider>}
+          {authChecking && path !== "/" && path !== "/login" && path !== "/register" ? <p className="py-12 text-center text-sm text-muted">Checking your account...</p> : down ? <EmptyState icon="alert" title={t("serverDown")} sub={t("serverDownSub")} /> : <ProfileCtx.Provider value={{ profile, reload }}>{children}</ProfileCtx.Provider>}
         </main>
       </div>
 
@@ -151,10 +218,3 @@ function Layout({ children }: { children: ReactNode }) {
 export default function Shell({ children }: { children: ReactNode }) {
   return <ToastProvider><Layout>{children}</Layout></ToastProvider>;
 }
-
-
-
-
-
-
-

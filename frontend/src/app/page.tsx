@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useTranslation } from "react-i18next";
 import { LANGS, Lang } from "@/i18n";
-import { api, Profile } from "@/api";
+import { api, Profile, familyApi, FamilyMember } from "@/api";
 import Icon from "@/components/Icon";
 
 export default function ChooseProfilePage() {
@@ -24,26 +24,89 @@ export default function ChooseProfilePage() {
   const [emergencyName, setEmergencyName] = useState("");
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [notice, setNotice] = useState("");
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+  const [savingMember, setSavingMember] = useState(false);
+
+  async function loadFamilyMembers() {
+    try {
+      const result = await familyApi.list();
+      setFamilyMembers(result.members);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not load family profiles.");
+    }
+  }
 
   useEffect(() => {
     api.profile()
       .then(setProfile)
-      .catch(() =>
-        setNotice(
-          t("home.loadError")
-        )
-      )
+      .catch(() => setNotice(t("home.loadError")))
       .finally(() => setLoading(false));
+
+    void loadFamilyMembers();
   }, []);
 
-  function handleAddMember(event: FormEvent<HTMLFormElement>) {
+  async function handleAddMember(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    setNotice(
-      `${t("home.familyProfiles")} are not connected to secure account storage yet. Your details have not been saved. We will connect this form after the family-account backend is ready.`
-    );
-  }
+    if (!memberName.trim()) {
+      setNotice("Please enter the family member's name.");
+      return;
+    }
 
+    setSavingMember(true);
+    setNotice("");
+
+    try {
+            await familyApi.add({
+        name: memberName.trim(),
+        ...(dateOfBirth ? { dob: dateOfBirth } : {}),
+        ...(gender ? { sex: gender } : {}),
+        ...(age.trim() && Number.isFinite(Number(age))
+          ? { age: Number(age) }
+          : {}),
+        ...(bloodGroup.trim() ? { blood_group: bloodGroup.trim() } : {}),
+        ...(allergies.trim()
+          ? { allergies_text: allergies.trim() }
+          : {}),
+        ...(conditions.trim()
+          ? { conditions_text: conditions.trim() }
+          : {}),
+        ...(medicines.trim()
+          ? { medicines_text: medicines.trim() }
+          : {}),
+        ...(previousRecords.trim()
+          ? { previous_records: previousRecords.trim() }
+          : {}),
+        ...(emergencyName.trim()
+          ? { emergency_contact_name: emergencyName.trim() }
+          : {}),
+        ...(emergencyPhone.trim()
+          ? { emergency_contact_phone: emergencyPhone.trim() }
+          : {}),
+      });
+
+      await loadFamilyMembers();
+
+      setMemberName("");
+      setDateOfBirth("");
+      setAge("");
+      setGender("");
+      setBloodGroup("");
+      setAllergies("");
+      setConditions("");
+      setMedicines("");
+      setPreviousRecords("");
+      setEmergencyName("");
+      setEmergencyPhone("");
+
+      setNotice("Family profile saved. Name, date of birth and gender were sent to the backend.");
+      setShowAdd(false);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not save the family profile.");
+    } finally {
+      setSavingMember(false);
+    }
+  }
   const initials = (profile?.name || t("home.myProfile"))
     .split(/\s+/)
     .map((part) => part[0])
@@ -232,12 +295,52 @@ export default function ChooseProfilePage() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-dashed border-line p-4">
-          <p className="font-medium">{t("home.noFamily")}</p>
-          <p className="mt-1 text-sm leading-6 text-muted">
-            {t("home.noFamilyText")}
-          </p>
-        </div>
+        {familyMembers.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-line p-4">
+            <p className="font-medium">{t("home.noFamily")}</p>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              {t("home.noFamilyText")}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {familyMembers.map((member) => (
+              <div
+                key={member.oid}
+                className="flex items-center justify-between gap-4 rounded-xl border border-line bg-white p-4"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-soft font-semibold text-brand">
+                    {member.name.trim().charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{member.name}</p>
+                    <p className="text-sm text-muted">
+                      {member.dob || "Date of birth not added"}
+                      {member.sex ? ` · ${member.sex}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={async () => {
+                    if (!window.confirm(`Remove ${member.name} from your family list?`)) return;
+                    try {
+                      await familyApi.remove(member.oid);
+                      await loadFamilyMembers();
+                      setNotice("Family member removed from your list.");
+                    } catch (error) {
+                      setNotice(error instanceof Error ? error.message : "Could not remove family member.");
+                    }
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         <button
           type="button"
@@ -446,6 +549,3 @@ export default function ChooseProfilePage() {
     </div>
   );
 }
-
-
-
