@@ -72,7 +72,7 @@ export default function Abha() {
         </div>
       </div>
 
-      <ol className="flex items-center gap-2" aria-label="Progress">
+      <ol className="flex items-center gap-2" aria-label={t("abhaProgress")}>
         {STEPS.map((s, i) => (
           <li key={s} className="flex flex-1 items-center gap-2 last:flex-none">
             <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-bold transition ${i < step ? "bg-ok text-white" : i === step ? "bg-brand text-on-brand" : "bg-surface-2 text-muted ring-1 ring-line"}`}

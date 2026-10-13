@@ -147,7 +147,7 @@ python -m venv .venv
 Copy-Item .env.example .env
 ```
 
-Open `backend\.env` locally and configure only the values required by the model/provider path you intend to use. Keep real keys in `.env`; never commit that file.
+Open `backend\.env` locally and configure the model/provider settings and S3-compatible storage settings required for document uploads. Keep real keys in `.env`; never commit that file.
 
 Start the API:
 

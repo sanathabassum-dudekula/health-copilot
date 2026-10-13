@@ -22,11 +22,12 @@ const NAV: { to: string; icon: IconName; key: string }[] = [
 ];
 
 function Logo() {
+  const { t } = useTranslation();
   return (
-    <Link href="/" aria-label="CuraMind home" className="flex min-w-0 items-center">
+    <Link href="/" aria-label={t("home.homeLink")} className="flex min-w-0 items-center">
       <Image
         src="/curamind-logo.jpeg"
-        alt="CuraMind ? Your Health, Our AI, A Better You"
+        alt={t("home.logoAlt")}
         width={520}
         height={180}
         priority
@@ -169,7 +170,7 @@ function Layout({ children }: { children: ReactNode }) {
             <div className="space-y-2 rounded-xl border border-line p-3">
               <p className="truncate text-xs text-muted">{account.email}</p>
               <button type="button" onClick={signOut} className="btn btn-ghost w-full">
-                Sign out
+                {t("auth.signOut")}
               </button>
             </div>
           )}
@@ -203,11 +204,11 @@ function Layout({ children }: { children: ReactNode }) {
               <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-brand-strong">{t("assistant.preview")}</span>
             </section>
           )}
-          {authChecking && path !== "/" && path !== "/login" && path !== "/register" ? <p className="py-12 text-center text-sm text-muted">Checking your account...</p> : down ? <EmptyState icon="alert" title={t("serverDown")} sub={t("serverDownSub")} /> : <ProfileCtx.Provider value={{ profile, reload }}>{children}</ProfileCtx.Provider>}
+          {authChecking && path !== "/" && path !== "/login" && path !== "/register" ? <p className="py-12 text-center text-sm text-muted">{t("auth.checking")}</p> : down ? <EmptyState icon="alert" title={t("serverDown")} sub={t("serverDownSub")} /> : <ProfileCtx.Provider value={{ profile, reload }}>{children}</ProfileCtx.Provider>}
         </main>
       </div>
 
-      {path !== "/" && (<nav aria-label="Primary" className="no-print fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 gap-1 rounded-2xl border border-line bg-surface/95 p-1.5 shadow-card backdrop-blur md:hidden">
+      {path !== "/" && (<nav aria-label={t("auth.primaryNav")} className="no-print fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 gap-1 rounded-2xl border border-line bg-surface/95 p-1.5 shadow-card backdrop-blur md:hidden">
         {NAV.map((n) => (
           <Link key={n.to} href={n.to}
             className={`flex flex-col items-center gap-0.5 rounded-xl py-2 text-[11px] font-semibold ${active(n) ? "bg-brand-soft text-brand-strong" : "text-muted"}`}>

@@ -28,7 +28,7 @@ export default function ChooseProfilePage() {
       const result = await familyApi.list();
       setFamilyMembers(result.members);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not load family profiles.");
+      setNotice(error instanceof Error ? error.message : t("home.loadFamilyError"));
     }
   }
 
@@ -45,7 +45,7 @@ export default function ChooseProfilePage() {
     event.preventDefault();
 
     if (!memberName.trim()) {
-      setNotice("Please enter the family member's name.");
+      setNotice(t("home.familyNameRequired"));
       return;
     }
 
@@ -79,10 +79,10 @@ export default function ChooseProfilePage() {
       setEmergencyName("");
       setEmergencyPhone("");
 
-      setNotice("Family profile saved. Name, date of birth and gender were sent to the backend.");
+      setNotice(t("home.familySaved"));
       setShowAdd(false);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not save the family profile.");
+      setNotice(error instanceof Error ? error.message : t("home.saveFamilyError"));
     } finally {
       setSavingMember(false);
     }
@@ -140,22 +140,22 @@ export default function ChooseProfilePage() {
 
         <div className="min-w-0 space-y-6">
           <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#E8DFF3] bg-white/95 p-3 shadow-sm sm:p-4">
-            <nav aria-label="Account access" className="flex flex-wrap items-center gap-2">
-              <Link href="/" className="rounded-xl border border-[#E5D9F2] bg-[#F8F5FC] px-4 py-2.5 text-sm font-medium text-[#57416F] transition-colors hover:bg-[#F0E8FA]">
-                Continue as Guest
+            <nav aria-label={t("auth.accountAccess")} className="flex flex-wrap items-center gap-2">
+              <Link href="/health" className="rounded-xl border border-[#E5D9F2] bg-[#F8F5FC] px-4 py-2.5 text-sm font-medium text-[#57416F] transition-colors hover:bg-[#F0E8FA]">
+                {t("auth.continueGuest")}
               </Link>
               <Link href="/login" className="rounded-xl px-4 py-2.5 text-sm font-medium text-[#57416F] transition-colors hover:bg-[#F5F1FC]">
-                Log In
+                {t("auth.logIn")}
               </Link>
               <Link href="/register" className="rounded-xl bg-[#62449B] px-4 py-2.5 text-sm font-semibold !text-white shadow-sm transition-colors hover:bg-[#503580]">
-                Create Account
+                {t("auth.createAccount")}
               </Link>
             </nav>
             <label className="flex items-center gap-2 text-sm font-medium text-[#123C46]">
-              <span>Language</span>
+              <span>{t("language")}</span>
 
               <select
-                aria-label="Language"
+                aria-label={t("language")}
                 className="min-h-10 rounded-xl border border-line bg-white px-3 text-[#123C46]"
                 value={i18n.language in LANGS ? i18n.language : "en"}
                 onChange={(event) => {
@@ -279,7 +279,7 @@ export default function ChooseProfilePage() {
           </span>
 
           <div className="flex-1">
-            <h2 className="text-xl font-semibold">Profiles</h2>
+            <h2 className="text-xl font-semibold">{t("home.familyProfiles")}</h2>
             <p className="mt-1 text-sm leading-6 text-muted">
               {t("home.familyText")}
             </p>
@@ -307,7 +307,7 @@ export default function ChooseProfilePage() {
                   <div className="min-w-0">
                     <p className="truncate font-medium">{member.name}</p>
                     <p className="text-sm text-muted">
-                      {member.dob || "Date of birth not added"}
+                      {member.dob || t("home.dobNotAdded")}
                       {member.sex ? ` · ${member.sex}` : ""}
                     </p>
                   </div>
@@ -316,17 +316,17 @@ export default function ChooseProfilePage() {
                   type="button"
                   className="btn"
                   onClick={async () => {
-                    if (!window.confirm(`Remove ${member.name} from your family list?`)) return;
+                    if (!window.confirm(t("home.removeFamilyConfirm", { name: member.name }))) return;
                     try {
                       await familyApi.remove(member.oid);
                       await loadFamilyMembers();
-                      setNotice("Family member removed from your list.");
+                      setNotice(t("home.familyRemoved"));
                     } catch (error) {
-                      setNotice(error instanceof Error ? error.message : "Could not remove family member.");
+                      setNotice(error instanceof Error ? error.message : t("home.removeFamilyError"));
                     }
                   }}
                 >
-                  Remove
+                  {t("home.remove")}
                 </button>
               </div>
             ))}
@@ -342,7 +342,7 @@ export default function ChooseProfilePage() {
           }}
         >
           <Icon name="plus" className="h-4 w-4" />
-          {showAdd ? t("home.closeForm") : "+ Add profile"}
+          {showAdd ? t("home.closeForm") : `+ ${t("home.addFamily")}`}
         </button>
 
         {showAdd && (
@@ -396,7 +396,7 @@ export default function ChooseProfilePage() {
                 </label>
 
                 <label className="block space-y-1.5 text-sm font-medium">
-                  Gender
+                  {t("home.gender")}
                   <select
                     value={gender}
                     onChange={(event) => setGender(event.target.value)}

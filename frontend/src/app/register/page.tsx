@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import { api } from "../../api";
 
 export default function RegisterPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -19,11 +21,11 @@ export default function RegisterPage() {
     setError("");
 
     if (password.length < 8) {
-      setError("Use a password with at least 8 characters.");
+      setError(t("auth.passwordMinError"));
       return;
     }
     if (password !== confirm) {
-      setError("The passwords do not match.");
+      setError(t("auth.passwordMismatch"));
       return;
     }
 
@@ -36,7 +38,13 @@ export default function RegisterPage() {
       });
       router.replace("/health");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to create your account.");
+      if (e instanceof Error && e.message === "Enter a valid email address.") {
+        setError(t("auth.invalidEmail"));
+      } else if (e instanceof Error && e.message.includes("already exists")) {
+        setError(t("auth.emailExists"));
+      } else {
+        setError(t("auth.unableToCreate"));
+      }
     } finally {
       setBusy(false);
     }
@@ -46,16 +54,16 @@ export default function RegisterPage() {
     <div className="mx-auto flex min-h-[75vh] max-w-md items-center px-4 py-10">
       <section className="card w-full space-y-6 p-6 sm:p-8">
         <div className="space-y-2">
-          <p className="eyebrow">YOUR HEALTH, IN ONE PLACE</p>
-          <h1 className="text-3xl font-semibold text-ink">Create your account</h1>
+          <p className="eyebrow">{t("auth.yourHealth")}</p>
+          <h1 className="text-3xl font-semibold text-ink">{t("auth.registerTitle")}</h1>
           <p className="text-sm leading-6 text-muted">
-            Save your health profile and return to your information when you sign in again.
+            {t("auth.registerDescription")}
           </p>
         </div>
 
         <form onSubmit={submit} className="space-y-4">
           <label className="block space-y-1.5">
-            <span className="text-sm font-medium text-ink">Your name</span>
+            <span className="text-sm font-medium text-ink">{t("auth.name")}</span>
             <input
               className="input w-full"
               autoComplete="name"
@@ -63,12 +71,12 @@ export default function RegisterPage() {
               maxLength={100}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Your name"
+              placeholder={t("auth.namePlaceholder")}
             />
           </label>
 
           <label className="block space-y-1.5">
-            <span className="text-sm font-medium text-ink">Email address</span>
+            <span className="text-sm font-medium text-ink">{t("auth.email")}</span>
             <input
               className="input w-full"
               type="email"
@@ -76,12 +84,12 @@ export default function RegisterPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              placeholder={t("auth.emailPlaceholder")}
             />
           </label>
 
           <label className="block space-y-1.5">
-            <span className="text-sm font-medium text-ink">Password</span>
+            <span className="text-sm font-medium text-ink">{t("auth.password")}</span>
             <input
               className="input w-full"
               type="password"
@@ -91,12 +99,12 @@ export default function RegisterPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
+              placeholder={t("auth.passwordMinPlaceholder")}
             />
           </label>
 
           <label className="block space-y-1.5">
-            <span className="text-sm font-medium text-ink">Confirm password</span>
+            <span className="text-sm font-medium text-ink">{t("auth.confirmPassword")}</span>
             <input
               className="input w-full"
               type="password"
@@ -104,28 +112,28 @@ export default function RegisterPage() {
               required
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              placeholder="Enter your password again"
+              placeholder={t("auth.confirmPasswordPlaceholder")}
             />
           </label>
 
           {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
 
           <button className="btn btn-primary w-full" type="submit" disabled={busy}>
-            {busy ? "Creating account..." : "Create account"}
+            {busy ? t("auth.creatingAccount") : t("auth.createAccount")}
           </button>
         </form>
 
         <p className="text-center text-sm text-muted">
-          Already have an account?{" "}
+          {t("auth.alreadyHaveAccount")}{" "}
           <Link href="/login" className="font-semibold text-brand-strong underline">
-            Sign in
+            {t("auth.signIn")}
           </Link>
         </p>
 
         <p className="text-center text-sm text-muted">
-          Prefer not to register?{" "}
-          <Link href="/" className="font-semibold text-brand-strong underline">
-            Continue as guest
+          {t("auth.preferNotRegister")}{" "}
+          <Link href="/health" className="font-semibold text-brand-strong underline">
+            {t("auth.continueAsGuest")}
           </Link>
         </p>
       </section>

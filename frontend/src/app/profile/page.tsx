@@ -34,7 +34,7 @@ export default function ProfilePage() {
     setError("");
 
     if (!name.trim()) {
-      setError("Please enter your name before saving.");
+      setError(t("profile.nameRequired"));
       return;
     }
 
@@ -81,7 +81,7 @@ export default function ProfilePage() {
     <main className="mx-auto w-full max-w-5xl space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Image src="/curamind-logo.jpeg" alt="CuraMind logo" width={520} height={180} className="h-auto w-[145px] max-w-full object-contain sm:w-[175px]" />
+          <Image src="/curamind-logo.jpeg" alt={t("profile.logoAlt")} width={520} height={180} className="h-auto w-[145px] max-w-full object-contain sm:w-[175px]" />
           <div>
             <p className="text-xl font-bold text-[#123C46]">CuraMind</p>
             <p className="text-xs text-muted">{t("profile.brandTagline")}</p>
@@ -238,11 +238,11 @@ export default function ProfilePage() {
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="rounded-xl border border-line p-4">
             <p className="text-sm text-muted">{t("profile.abhaNumber")}</p>
-            <p className="mt-2 break-all font-medium">{profile?.abha.number || "Not added"}</p>
+            <p className="mt-2 break-all font-medium">{profile?.abha.number || t("profile.notAdded")}</p>
           </div>
           <div className="rounded-xl border border-line p-4">
             <p className="text-sm text-muted">{t("profile.abhaAddress")}</p>
-            <p className="mt-2 break-all font-medium">{profile?.abha.address || "Not added"}</p>
+            <p className="mt-2 break-all font-medium">{profile?.abha.address || t("profile.notAdded")}</p>
           </div>
         </div>
 

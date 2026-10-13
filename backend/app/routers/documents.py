@@ -1,6 +1,7 @@
 
 
 import io
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile
@@ -9,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..auth import current_profile
+from ..config import settings
 from ..db import get_db
 from ..ingestion.classify import classify_document
 from ..ingestion.graph import run_ingest
@@ -17,6 +19,7 @@ from ..models import Document, Profile
 from ..storage import get_s3_client, upload_file as store_file, delete_file
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+log = logging.getLogger(__name__)
 
 EXT = {
     "image/jpeg": ".jpg",
@@ -24,7 +27,6 @@ EXT = {
     "application/pdf": ".pdf",
 }
 MAX_BYTES = 15 * 1024 * 1024
-BUCKET = "curamind-medical-files"
 
 
 def _own(db: Session, profile: Profile, doc_id: int) -> Document:
@@ -80,6 +82,7 @@ async def upload(
     try:
         classification = classify_document(data, file.content_type)
     except Exception:
+        log.exception("Could not screen uploaded document")
         raise HTTPException(
             503,
             "We couldn't verify this document right now. Please try again.",
@@ -120,11 +123,12 @@ async def upload(
         db.commit()
         db.refresh(doc)
     except Exception:
+        log.exception("Could not save uploaded document %s", doc.id)
         db.rollback()
         try:
             delete_file(key)
         except Exception:
-            pass
+            log.exception("Could not clean up failed upload for document %s", doc.id)
         raise HTTPException(
             502, "Could not save the document to secure storage"
         )
@@ -181,7 +185,7 @@ def get_file(
 
     try:
         obj = get_s3_client().get_object(
-            Bucket=BUCKET,
+            Bucket=settings.S3_BUCKET_NAME,
             Key=d.file_path,
         )
         data = obj["Body"].read()
