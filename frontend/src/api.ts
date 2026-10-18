@@ -315,6 +315,7 @@ export const api = {
     conversation_id: number;
     images: AssistantImage[];
     profile_oid?: string;
+    page_context?: string;
   }) =>
     post<{
       answer: string;

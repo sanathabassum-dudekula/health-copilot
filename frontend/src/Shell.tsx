@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { api, ApiRequestError, Profile, AccountUser } from "./api";
 import { ToastProvider } from "./components/Toast";
 import Icon, { IconName } from "./components/Icon";
+import PageAssistant from "./components/PageAssistant";
 import { EmptyState, Segmented } from "./components/ui";
 import { LANGS, Lang } from "./i18n";
 
@@ -212,6 +213,7 @@ function Layout({ children }: { children: ReactNode }) {
         <main id="main" className={`mx-auto px-4 py-6 ${assistantPage ? "max-w-7xl md:px-8 md:py-6" : "max-w-5xl md:px-10 md:py-10"}`}>
           {authChecking && path !== "/" && path !== "/login" && path !== "/register" ? <p className="py-12 text-center text-sm text-muted">{t("auth.checking")}</p> : down ? <EmptyState icon="alert" title={t("serverDown")} sub={t("serverDownSub")} /> : <ProfileCtx.Provider value={{ profile, reload }}>{children}</ProfileCtx.Provider>}
         </main>
+        {!authChecking && !down && <PageAssistant pathname={path} profile={profile} />}
       </div>
 
       {path !== "/" && !assistantPage && (<nav aria-label={t("auth.primaryNav")} className="no-print fixed inset-x-3 bottom-3 z-40 grid grid-cols-7 gap-0.5 rounded-2xl border border-line bg-surface/95 p-1 shadow-card backdrop-blur md:hidden">

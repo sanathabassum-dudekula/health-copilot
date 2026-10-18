@@ -134,6 +134,67 @@ def test_health_assistant_uses_language_and_profile_context(monkeypatch):
     assert "Penicillin" in captured["messages"][0].content
 
 
+def test_health_assistant_uses_page_context_without_saving_it(monkeypatch):
+    from langchain_core.messages import AIMessage
+    from app.routers import assistant
+
+    captured = {}
+
+    class ContextChat:
+        def invoke(self, messages):
+            captured["messages"] = messages
+            return AIMessage(content="This page shows your recent health overview.")
+
+    monkeypatch.setattr(assistant, "chat_model", lambda *args: ContextChat())
+    with TestClient(app, headers=_visit()) as client:
+        response = client.post(
+            "/assistant/chat",
+            json={
+                "message": "Can you explain this page?",
+                "language": "en",
+                "page_context": "Health page: 2 documents, 1 result to review.",
+            },
+        )
+        history = client.get("/assistant/history")
+
+    assert response.status_code == 200
+    assert "Health page: 2 documents, 1 result to review." in captured["messages"][0].content
+    assert [message["content"] for message in history.json()] == [
+        "Can you explain this page?",
+        "This page shows your recent health overview.",
+    ]
+
+
+def test_health_assistant_retries_transient_model_errors(monkeypatch):
+    from langchain_core.messages import AIMessage
+    from app.routers import assistant
+
+    class TemporaryModelError(Exception):
+        code = 503
+
+    class FlakyChat:
+        calls = 0
+
+        def invoke(self, _messages):
+            self.calls += 1
+            if self.calls == 1:
+                raise TemporaryModelError("Model is temporarily unavailable")
+            return AIMessage(content="I can help with general health information.")
+
+    fake_chat = FlakyChat()
+    monkeypatch.setattr(assistant, "chat_model", lambda *args: fake_chat)
+    monkeypatch.setattr(assistant.time, "sleep", lambda _seconds: None)
+
+    with TestClient(app, headers=_visit()) as client:
+        response = client.post(
+            "/assistant/chat",
+            json={"message": "Can you help me understand my health records?"},
+        )
+
+    assert response.status_code == 200
+    assert fake_chat.calls == 2
+
+
 def test_health_assistant_prepares_separate_spoken_language(monkeypatch):
     from langchain_core.messages import AIMessage
     from app.routers import assistant
