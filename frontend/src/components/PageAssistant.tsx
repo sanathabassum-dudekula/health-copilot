@@ -2,9 +2,10 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, AssistantConversation, AssistantMessage, familyApi, FamilyMember, Profile } from "@/api";
+import { api, AssistantConversation, AssistantMessage, AssistantReminderProposal as ReminderProposalData, familyApi, FamilyMember, localDateTimeWithOffset, Profile } from "@/api";
 import { Lang } from "@/i18n";
 import Icon from "./Icon";
+import AssistantReminderProposal from "./AssistantReminderProposal";
 
 type SpeechRecognitionEventLike = {
   results: ArrayLike<ArrayLike<{ transcript: string }>>;
@@ -43,6 +44,9 @@ export default function PageAssistant({
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
+  const [reminderProposal, setReminderProposal] = useState<ReminderProposalData | null>(null);
+  const [proposalMessageId, setProposalMessageId] = useState<number | null>(null);
+  const [reminderProposalError, setReminderProposalError] = useState(false);
   const [conversation, setConversation] = useState<AssistantConversation | null>(null);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [profileOid, setProfileOid] = useState<string>();
@@ -75,6 +79,9 @@ export default function PageAssistant({
     setProfileOid(requestedProfile);
     setConversation(null);
     setMessages([]);
+    setReminderProposal(null);
+    setProposalMessageId(null);
+    setReminderProposalError(false);
     setError("");
   }, [pathname]);
 
@@ -159,6 +166,7 @@ export default function PageAssistant({
         voice_language: voiceLanguage,
         conversation_id: activeConversation.id,
         images: [],
+        local_now: localDateTimeWithOffset(),
         page_context: currentPageContext(),
         ...(profileOid ? { profile_oid: profileOid } : {}),
       });
@@ -166,6 +174,10 @@ export default function PageAssistant({
         ...current.filter((message) => message.id !== pendingId),
         ...response.messages,
       ]);
+      const proposalMessage = response.messages[response.messages.length - 1];
+      setReminderProposal(response.reminder_proposal);
+      setProposalMessageId(response.reminder_proposal ? proposalMessage?.id ?? null : null);
+      setReminderProposalError(response.reminder_proposal_error);
       if (speakReplies || voiceReplyNext.current) speak(response.spoken_answer);
       voiceReplyNext.current = false;
     } catch (requestError) {
@@ -182,6 +194,9 @@ export default function PageAssistant({
     setProfileOid(nextProfileOid || undefined);
     setConversation(null);
     setMessages([]);
+    setReminderProposal(null);
+    setProposalMessageId(null);
+    setReminderProposalError(false);
     setError("");
   }
 
@@ -305,11 +320,16 @@ export default function PageAssistant({
                   </p>
                   <p className="whitespace-pre-wrap">{message.content}</p>
                   {message.role === "assistant" && (
-                    <button type="button" onClick={() => speak(message.content)}
-                      className="mt-1 inline-flex items-center gap-1 text-xs text-muted hover:text-brand"
-                      aria-label={t("assistant.readAloud")}>
-                      <Icon name="volume" className="h-3.5 w-3.5" />{t("assistant.readAloud")}
-                    </button>
+                    <>
+                      <button type="button" onClick={() => speak(message.content)}
+                        className="mt-1 inline-flex items-center gap-1 text-xs text-muted hover:text-brand"
+                        aria-label={t("assistant.readAloud")}>
+                        <Icon name="volume" className="h-3.5 w-3.5" />{t("assistant.readAloud")}
+                      </button>
+                      {message.id === proposalMessageId && reminderProposal && (
+                        <AssistantReminderProposal proposal={reminderProposal} profileOid={profileOid} />
+                      )}
+                    </>
                   )}
                 </div>
               </article>
@@ -322,6 +342,7 @@ export default function PageAssistant({
           </div>
 
           {error && <p role="alert" className="mx-3 mb-2 rounded-lg bg-crit-soft px-3 py-2 text-xs text-crit">{error}</p>}
+          {reminderProposalError && <p role="status" className="mx-3 mb-2 text-xs text-high">{t("assistant.reminderProposalError")}</p>}
           <form onSubmit={handleSubmit} className="border-t border-line bg-surface p-3">
             <label htmlFor="page-assistant-message" className="sr-only">{t("pageAssistant.inputLabel")}</label>
             <textarea id="page-assistant-message" value={draft} maxLength={2000} rows={2}

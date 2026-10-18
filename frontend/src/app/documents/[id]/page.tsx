@@ -34,6 +34,7 @@ function Processing() {
 export default function DocumentDetail() {
   const id = Number(useParams<{ id: string }>().id);
   const { t, i18n } = useTranslation();
+  const [profileOid, setProfileOid] = useState<string>();
   const [doc, setDoc] = useState<Doc | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [summaryError, setSummaryError] = useState(false);
@@ -56,6 +57,9 @@ export default function DocumentDetail() {
     load();
     return () => clearTimeout(timer);
   }, [id]);
+  useEffect(() => {
+    setProfileOid(new URLSearchParams(window.location.search).get("profile_oid") || undefined);
+  }, []);
   useEffect(() => {
     setFile(null);
     setFileError(false);
@@ -120,6 +124,12 @@ export default function DocumentDetail() {
   ] as [string, unknown][]).filter(([, value]) => value !== null && value !== undefined && value !== "" && (!Array.isArray(value) || value.length > 0)) : [];
   const hasData = obs.length || meds.length || doc.conditions?.length || doc.allergies?.length || injuries.length || womenFields.length;
   const needsReview = doc.review_status === "pending";
+  const followUpReminderParams = new URLSearchParams({
+    category: "follow_up",
+    document_id: String(id),
+    prefill: "report_follow_up",
+  });
+  if (profileOid) followUpReminderParams.set("profile_oid", profileOid);
   const tabs = [{ value: "summary" as Tab, label: t("tab.summary") }, { value: "data" as Tab, label: t("tab.data") },
     ...(file ? [{ value: "original" as Tab, label: t("tab.original") }] : [])];
 
@@ -312,7 +322,14 @@ export default function DocumentDetail() {
         </section>
       )}
       {doc.review_status === "confirmed" && (
-        <p className="text-sm font-medium text-ok">{t("documentDetail.confirmedStatus")}</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm font-medium text-ok">{t("documentDetail.confirmedStatus")}</p>
+          {doc.extraction?.follow_up && (
+            <Link className="btn btn-soft !min-h-9 !px-3 text-xs" href={`/reminders?${followUpReminderParams.toString()}`}>
+              <Icon name="bell" className="h-4 w-4" />{t("documentDetail.addFollowUpReminder")}
+            </Link>
+          )}
+        </div>
       )}
       {doc.review_status === "rejected" && (
         <p className="text-sm font-medium text-muted">{t("documentDetail.rejectedStatus")}</p>

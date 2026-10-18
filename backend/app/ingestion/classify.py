@@ -7,7 +7,7 @@ from pathlib import Path
 from langchain_core.messages import HumanMessage
 
 from ..config import settings
-from .llm import structured
+from .llm import invoke_with_retry, structured
 from .prepare import prepare_file
 from .schemas import DocumentClassification
 
@@ -76,12 +76,12 @@ def classify_document(data: bytes, mime: str) -> DocumentClassification:
                 or "image/jpeg",
             })
 
-        result = structured(
-            settings.VISION_MODEL, DocumentClassification
-        ).invoke([HumanMessage(content=content)])
+        result = invoke_with_retry(
+            structured(settings.VISION_MODEL, DocumentClassification),
+            [HumanMessage(content=content)],
+        )
 
         if result is None:
             raise ValueError("Document screening returned no result")
 
         return result
-

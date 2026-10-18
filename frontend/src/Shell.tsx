@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, ApiRequestError, Profile, AccountUser } from "./api";
-import { ToastProvider } from "./components/Toast";
+import { ToastProvider, useToast } from "./components/Toast";
 import Icon, { IconName } from "./components/Icon";
 import PageAssistant from "./components/PageAssistant";
 import { EmptyState, Segmented } from "./components/ui";
@@ -51,15 +51,22 @@ function useTheme() {
 
 function Controls() {
   const { t, i18n } = useTranslation();
+  const toast = useToast();
   const { dark, toggle } = useTheme();
-  const change = (l: Lang) => {
-    i18n.changeLanguage(l);
+  const change = async (l: Lang) => {
+    await i18n.changeLanguage(l);
     try { localStorage.setItem("lang", l); } catch { /* private mode */ }
-    api.setLanguage(l).catch(() => {});
+    try {
+      await api.setLanguage(l);
+    } catch {
+      toast(t("profile.languageSaveError"), true);
+    }
   };
+  const currentLanguageCode = i18n.language.split("-")[0];
+  const currentLanguage: Lang = currentLanguageCode in LANGS ? currentLanguageCode as Lang : "en";
   return (
     <div className="flex items-center gap-2">
-      <div className="scale-[0.88] origin-left"><Segmented label={t("language")} value={i18n.language as Lang} onChange={change}
+      <div className="scale-[0.88] origin-left"><Segmented label={t("language")} value={currentLanguage} onChange={(value) => void change(value)}
         options={(Object.keys(LANGS) as Lang[]).map((k) => ({ value: k, label: k === "en" ? "EN" : LANGS[k] }))} /></div>
       <button onClick={toggle} aria-label={t("theme")} aria-pressed={dark} className="btn btn-ghost !min-h-9 !w-9 !px-0">
         <Icon name={dark ? "sun" : "moon"} className="h-4 w-4" />
@@ -77,9 +84,19 @@ function Layout({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<AccountUser | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
 
+  const applyProfile = useCallback((profileData: Profile) => {
+    setProfile(profileData);
+    setDown(false);
+    if (profileData.language in LANGS) {
+      const language = profileData.language as Lang;
+      void i18n.changeLanguage(language);
+      try { localStorage.setItem("lang", language); } catch { /* private mode */ }
+    }
+  }, [i18n]);
+
   const reload = useCallback(() => {
     api.profile()
-      .then((p) => { setProfile(p); setDown(false); })
+      .then(applyProfile)
       .catch((error) => {
         if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) {
           setProfile(null);
@@ -88,7 +105,7 @@ function Layout({ children }: { children: ReactNode }) {
         }
         setDown(true);
       });
-  }, []);
+  }, [applyProfile]);
 
   useEffect(() => {
     const publicPage = path === "/" || path === "/login" || path === "/register";
@@ -107,7 +124,7 @@ function Layout({ children }: { children: ReactNode }) {
         if (cancelled) return;
         setAccount(user);
         return api.profile().then((p) => {
-          if (!cancelled) { setProfile(p); setDown(false); }
+          if (!cancelled) applyProfile(p);
         });
       })
       .catch(async (error) => {
@@ -115,7 +132,7 @@ function Layout({ children }: { children: ReactNode }) {
         setAccount(null);
         try {
           const p = await api.profile();
-          if (!cancelled) { setProfile(p); setDown(false); }
+          if (!cancelled) applyProfile(p);
         } catch (profileError) {
           if (!cancelled) {
             if (profileError instanceof ApiRequestError && (profileError.status === 401 || profileError.status === 403)) {
@@ -132,7 +149,7 @@ function Layout({ children }: { children: ReactNode }) {
       });
 
     return () => { cancelled = true; };
-  }, [path, router]);
+  }, [applyProfile, path, router]);
 
   async function signOut() {
     try {

@@ -167,6 +167,7 @@ def test_health_assistant_uses_page_context_without_saving_it(monkeypatch):
 
 def test_health_assistant_retries_transient_model_errors(monkeypatch):
     from langchain_core.messages import AIMessage
+    from app.ingestion import llm
     from app.routers import assistant
 
     class TemporaryModelError(Exception):
@@ -178,12 +179,15 @@ def test_health_assistant_retries_transient_model_errors(monkeypatch):
         def invoke(self, _messages):
             self.calls += 1
             if self.calls == 1:
-                raise TemporaryModelError("Model is temporarily unavailable")
+                try:
+                    raise TemporaryModelError("Model is temporarily unavailable")
+                except TemporaryModelError as error:
+                    raise RuntimeError("The provider wrapped a transient failure") from error
             return AIMessage(content="I can help with general health information.")
 
     fake_chat = FlakyChat()
     monkeypatch.setattr(assistant, "chat_model", lambda *args: fake_chat)
-    monkeypatch.setattr(assistant.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(llm.time, "sleep", lambda _seconds: None)
 
     with TestClient(app, headers=_visit()) as client:
         response = client.post(
@@ -193,6 +197,138 @@ def test_health_assistant_retries_transient_model_errors(monkeypatch):
 
     assert response.status_code == 200
     assert fake_chat.calls == 2
+
+
+def test_document_classifier_retries_transient_model_errors(monkeypatch):
+    from app.ingestion import classify, llm
+
+    class TemporaryModelError(Exception):
+        code = 503
+
+    class FlakyStructured:
+        calls = 0
+
+        def invoke(self, _messages):
+            self.calls += 1
+            if self.calls == 1:
+                raise TemporaryModelError("Model is temporarily unavailable")
+            return DocumentClassification(
+                is_medical=True,
+                confidence=0.99,
+                reason="Medical report.",
+            )
+
+    fake_model = FlakyStructured()
+    monkeypatch.setattr(classify, "prepare_file", lambda *_args, **_kwargs: ([], "report text"))
+    monkeypatch.setattr(classify, "structured", lambda *_args: fake_model)
+    monkeypatch.setattr(llm.time, "sleep", lambda _seconds: None)
+
+    result = classify.classify_document(_png(), "image/png")
+
+    assert result.is_medical
+    assert fake_model.calls == 2
+
+
+def test_health_assistant_uses_uploaded_document_context_without_saving_it(monkeypatch):
+    from langchain_core.messages import AIMessage
+    from sqlalchemy import select
+
+    from app.db import SessionLocal
+    from app.models import Document, Profile, Visit
+    from app.routers import assistant
+
+    captured = {}
+
+    class ContextChat:
+        def invoke(self, messages):
+            captured["messages"] = messages
+            return AIMessage(content="The report lists potassium at 6.9 mmol/L.")
+
+    monkeypatch.setattr(assistant, "chat_model", lambda *_args: ContextChat())
+    visit = _visit()
+    with TestClient(app, headers=visit) as client:
+        client.get("/profile")
+        with SessionLocal() as db:
+            profile = db.scalar(
+                select(Profile)
+                .join(Visit, Visit.user_id == Profile.user_id)
+                .where(Visit.token == visit["X-Visit"])
+            )
+            document = Document(
+                profile_id=profile.id,
+                doc_type="lab_report",
+                status="done",
+                source="upload",
+                review_status="pending",
+                extraction={
+                    "doc_type": "lab_report",
+                    "lab_results": [{
+                        "test_name": "Potassium",
+                        "value": "6.9",
+                        "unit": "mmol/L",
+                        "source_text": "K 6.9",
+                        "confidence": 0.9,
+                    }],
+                },
+            )
+            db.add(document)
+            db.commit()
+            document_id = document.id
+
+        response = client.post(
+            "/assistant/chat",
+            json={
+                "message": "Can you explain my report?",
+                "document_id": document_id,
+            },
+        )
+        history = client.get("/assistant/history")
+
+    assert response.status_code == 200
+    assert "Potassium" in captured["messages"][0].content
+    assert "not yet confirmed" in captured["messages"][0].content
+    assert "K 6.9" not in captured["messages"][0].content
+    assert all("K 6.9" not in message["content"] for message in history.json())
+
+
+def test_health_assistant_proposes_explicit_reminder_for_confirmation(monkeypatch):
+    from datetime import datetime
+
+    from langchain_core.messages import AIMessage
+    from app.routers import assistant
+
+    class ReminderChat:
+        def invoke(self, _messages):
+            return AIMessage(content="I can help you remember your appointment.")
+
+    class ReminderModel:
+        def invoke(self, _messages):
+            return assistant.AssistantReminderProposal(
+                title="Doctor appointment",
+                details="Bring the lab report.",
+                due_at=datetime(2026, 10, 19, 9, 0),
+                category="appointment",
+            )
+
+    monkeypatch.setattr(assistant, "chat_model", lambda *_args: ReminderChat())
+    monkeypatch.setattr(assistant, "structured", lambda *_args: ReminderModel())
+    with TestClient(app, headers=_visit()) as client:
+        response = client.post(
+            "/assistant/chat",
+            json={
+                "message": "Remind me about my appointment tomorrow at 9 AM.",
+                "local_now": "2026-10-18T15:00:00+05:30",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["reminder_proposal"] == {
+        "title": "Doctor appointment",
+        "details": "Bring the lab report.",
+        "due_at": "2026-10-19T09:00:00+05:30",
+        "category": "appointment",
+    }
+    assert response.json()["reminder_proposal_error"] is False
 
 
 def test_health_assistant_prepares_separate_spoken_language(monkeypatch):

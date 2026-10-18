@@ -1,5 +1,15 @@
 const BASE = "/api";  // proxied to the backend by next.config.ts
 
+export function localDateTimeWithOffset(): string {
+  const now = new Date();
+  const offset = -now.getTimezoneOffset();
+  const sign = offset >= 0 ? "+" : "-";
+  const hours = String(Math.floor(Math.abs(offset) / 60)).padStart(2, "0");
+  const minutes = String(Math.abs(offset) % 60).padStart(2, "0");
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return `${local.toISOString().slice(0, -1)}${sign}${hours}:${minutes}`;
+}
+
 
 /**
  * Per-tab guest visitor ID.
@@ -244,6 +254,14 @@ export type AssistantImage = {
   data_base64: string;
 };
 
+export type AssistantReminderProposal = {
+  title: string;
+  details: string | null;
+  due_at: string;
+  category: "appointment" | "follow_up" | "other";
+  document_id?: number;
+};
+
 export type HealthReminder = {
   id: number;
   profile_oid: string | null;
@@ -316,12 +334,16 @@ export const api = {
     images: AssistantImage[];
     profile_oid?: string;
     page_context?: string;
+    document_id?: number;
+    local_now?: string;
   }) =>
     post<{
       answer: string;
       spoken_answer: string;
       voice_translation_error: boolean;
       messages: AssistantMessage[];
+      reminder_proposal: AssistantReminderProposal | null;
+      reminder_proposal_error: boolean;
     }>("/assistant/chat", body),
   reminders: (profileOid?: string, includeInactive = false) => {
     const query = new URLSearchParams();

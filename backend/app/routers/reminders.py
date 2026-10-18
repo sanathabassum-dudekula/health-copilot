@@ -12,7 +12,7 @@ from ..access import confirmed_document_ids, profile_for_owner
 from ..auth import current_profile
 from ..config import settings
 from ..db import get_db
-from ..ingestion.llm import structured
+from ..ingestion.llm import invoke_with_retry, structured
 from ..models import HealthReminder, Medication, Profile
 
 router = APIRouter(prefix="/reminders", tags=["reminders"])
@@ -176,7 +176,7 @@ def suggest_routine(
         "allergies_reported_by_user": target.allergies_text,
     }
     try:
-        plan = structured(settings.TEXT_MODEL, RoutinePlan).invoke([
+        plan = invoke_with_retry(structured(settings.TEXT_MODEL, RoutinePlan), [
             {
                 "role": "system",
                 "content": (

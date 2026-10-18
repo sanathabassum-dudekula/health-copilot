@@ -8,10 +8,12 @@ import { useTranslation } from "react-i18next";
 import { api, Profile } from "@/api";
 import { useProfile } from "@/Shell";
 import { LANGS, Lang } from "@/i18n";
+import { useToast } from "@/components/Toast";
 
 export default function ProfilePage() {
   const { t, i18n } = useTranslation();
   const { profile, reload } = useProfile();
+  const toast = useToast();
   const router = useRouter();
 
   const [setupMode, setSetupMode] = useState(false);
@@ -76,7 +78,6 @@ export default function ProfilePage() {
       } catch {
         // Language still changes for the current session.
       }
-      api.setLanguage(language).catch(() => {});
       reload();
       if (setupMode) {
         router.replace("/health");
@@ -116,9 +117,9 @@ export default function ProfilePage() {
               onChange={(event) => {
                 const next = event.target.value as Lang;
                 setLanguage(next);
-                i18n.changeLanguage(next);
+                void i18n.changeLanguage(next);
                 try { localStorage.setItem("lang", next); } catch {}
-                api.setLanguage(next).catch(() => {});
+                api.setLanguage(next).catch(() => toast(t("profile.languageSaveError"), true));
               }}
             >
               {(Object.keys(LANGS) as Lang[]).map((key) => (

@@ -40,6 +40,7 @@ export default function RemindersPage() {
   const [category, setCategory] = useState<HealthReminder["category"]>("medication");
   const [recurrence, setRecurrence] = useState<HealthReminder["recurrence"]>("none");
   const [sourceDocumentId, setSourceDocumentId] = useState<number | undefined>();
+  const [followUpDocumentId, setFollowUpDocumentId] = useState<number | null>(null);
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
   const [routineSuggestions, setRoutineSuggestions] = useState<RoutineSuggestion[]>([]);
   const [confirmedPrescriptions, setConfirmedPrescriptions] = useState<ConfirmedPrescriptionSchedule[]>([]);
@@ -68,8 +69,39 @@ export default function RemindersPage() {
     if (requestedCategory === "medication" || requestedCategory === "appointment" || requestedCategory === "follow_up" || requestedCategory === "meal" || requestedCategory === "sleep" || requestedCategory === "wellness" || requestedCategory === "other") {
       setCategory(requestedCategory);
     }
-    if (Number.isInteger(requestedDocumentId) && requestedDocumentId > 0) setSourceDocumentId(requestedDocumentId);
+    if (Number.isInteger(requestedDocumentId) && requestedDocumentId > 0) {
+      setSourceDocumentId(requestedDocumentId);
+      if (params.get("prefill") === "report_follow_up") {
+        setFollowUpDocumentId(requestedDocumentId);
+      }
+    }
   }, [t]);
+
+  useEffect(() => {
+    if (!followUpDocumentId) return;
+    let cancelled = false;
+    api.doc(followUpDocumentId)
+      .then((document) => {
+        if (cancelled) return;
+        if (document.review_status !== "confirmed") {
+          setError(t("reminders.reportNotConfirmed"));
+          return;
+        }
+        const followUp = document.extraction?.follow_up?.trim();
+        if (!followUp) {
+          setError(t("reminders.reportFollowUpUnavailable"));
+          return;
+        }
+        setTitle(t("reminders.reportFollowUpTitle"));
+        setDetails(followUp);
+        setDueAt("");
+        setCategory("follow_up");
+      })
+      .catch(() => {
+        if (!cancelled) setError(t("reminders.reportPrefillError"));
+      });
+    return () => { cancelled = true; };
+  }, [followUpDocumentId, t]);
 
   useEffect(() => {
     let cancelled = false;

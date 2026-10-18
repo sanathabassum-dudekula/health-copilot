@@ -3,8 +3,9 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
-import { AssistantConversation, AssistantImage, AssistantMessage, api, familyApi, FamilyMember } from "@/api";
+import { AssistantConversation, AssistantImage, AssistantMessage, AssistantReminderProposal as ReminderProposalData, api, familyApi, FamilyMember, localDateTimeWithOffset } from "@/api";
 import Icon from "@/components/Icon";
+import AssistantReminderProposal from "@/components/AssistantReminderProposal";
 import { LANGS, Lang } from "@/i18n";
 import { useProfile } from "@/Shell";
 
@@ -46,6 +47,9 @@ export default function AssistantPage() {
   const [activeProfileOid, setActiveProfileOid] = useState<string | undefined>();
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
+  const [reminderProposal, setReminderProposal] = useState<ReminderProposalData | null>(null);
+  const [proposalMessageId, setProposalMessageId] = useState<number | null>(null);
+  const [reminderProposalError, setReminderProposalError] = useState(false);
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -53,6 +57,7 @@ export default function AssistantPage() {
   const [clearingHistory, setClearingHistory] = useState(false);
   const [reportUploading, setReportUploading] = useState(false);
   const [reportId, setReportId] = useState<number | null>(null);
+  const [activeDocumentId, setActiveDocumentId] = useState<number | null>(null);
   const [reportStatus, setReportStatus] = useState<"processing" | "done" | "error" | null>(null);
   const [reportError, setReportError] = useState("");
   const [voiceSupported, setVoiceSupported] = useState(false);
@@ -162,6 +167,10 @@ export default function AssistantPage() {
     setActiveConversationId(conversationId);
     setMessages([]);
     setDraft("");
+    setActiveDocumentId(null);
+    setReminderProposal(null);
+    setProposalMessageId(null);
+    setReminderProposalError(false);
     setError("");
     setLoadingHistory(true);
     pendingImages.forEach((image) => releaseImageUrl(image.preview));
@@ -187,6 +196,10 @@ export default function AssistantPage() {
       setActiveConversationId(conversation.id);
       setMessages([]);
       setDraft("");
+      setActiveDocumentId(null);
+      setReminderProposal(null);
+      setProposalMessageId(null);
+      setReminderProposalError(false);
       pendingImages.forEach((image) => releaseImageUrl(image.preview));
       setPendingImages([]);
     } catch {
@@ -196,7 +209,7 @@ export default function AssistantPage() {
     }
   }
 
-  async function sendMessage(content = draft) {
+  async function sendMessage(content = draft, documentId = activeDocumentId) {
     const message = content.trim();
     if ((!message && pendingImages.length === 0) || sending || loadingHistory || activeConversationId === null) return;
 
@@ -223,9 +236,15 @@ export default function AssistantPage() {
         voice_language: voiceLanguage,
         conversation_id: activeConversationId,
         images,
+        local_now: localDateTimeWithOffset(),
         ...(activeProfileOid ? { profile_oid: activeProfileOid } : {}),
+        ...(documentId ? { document_id: documentId } : {}),
       });
       setMessages((current) => [...current.filter((item) => item.id !== pendingId), ...response.messages]);
+      const proposalMessage = response.messages[response.messages.length - 1];
+      setReminderProposal(response.reminder_proposal);
+      setProposalMessageId(response.reminder_proposal ? proposalMessage?.id ?? null : null);
+      setReminderProposalError(response.reminder_proposal_error);
       setConversations((current) => current
         .map((conversation) => conversation.id === activeConversationId
           ? { ...conversation, title: conversation.title === "New health chat" ? message.slice(0, 120) : conversation.title, updated_at: new Date().toISOString() }
@@ -241,6 +260,7 @@ export default function AssistantPage() {
       attachedImages.forEach((item) => releaseImageUrl(item.preview));
       setPendingImages((current) => current.filter((item) => !attachedImages.includes(item)));
       setDraft("");
+      if (documentId) setActiveDocumentId(documentId);
     } catch (requestError) {
       setMessages((current) => current.filter((item) => item.id !== pendingId));
       setError(requestError instanceof Error ? requestError.message : t("assistant.error"));
@@ -259,6 +279,10 @@ export default function AssistantPage() {
       setConversations([]);
       setActiveConversationId(null);
       setMessages([]);
+      setActiveDocumentId(null);
+      setReminderProposal(null);
+      setProposalMessageId(null);
+      setReminderProposalError(false);
       const conversation = await api.createAssistantConversation(activeProfileOid);
       setConversations([conversation]);
       setActiveConversationId(conversation.id);
@@ -310,7 +334,7 @@ export default function AssistantPage() {
     setReportError("");
     setReportId(null);
     try {
-      const doc = await api.upload(file);
+      const doc = await api.upload(file, activeProfileOid);
       setReportId(doc.id);
       for (let attempt = 0; attempt < 90; attempt += 1) {
         const current = await api.doc(doc.id);
@@ -398,6 +422,10 @@ export default function AssistantPage() {
                 historyRequest.current += 1;
                 setActiveProfileOid(event.target.value || undefined);
                 setMessages([]);
+                setActiveDocumentId(null);
+                setReminderProposal(null);
+                setProposalMessageId(null);
+                setReminderProposalError(false);
                 setConversations([]);
                 setActiveConversationId(null);
                 setLoadingHistory(true);
@@ -482,12 +510,19 @@ export default function AssistantPage() {
                     {message.role === "user" ? t("assistant.you") : t("assistant.name")}
                   </p>
                   <p className="whitespace-pre-wrap">{message.content}</p>
-                  {message.role === "assistant" && typeof window !== "undefined" && "speechSynthesis" in window && (
-                    <button type="button" onClick={() => speakResponse(message.content)}
-                      className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted transition hover:text-brand"
-                      aria-label={t("assistant.readAloud")} title={t("assistant.readAloud")}>
-                      <Icon name="volume" className="h-3.5 w-3.5" />{t("assistant.readAloud")}
-                    </button>
+                  {message.role === "assistant" && (
+                    <>
+                      {typeof window !== "undefined" && "speechSynthesis" in window && (
+                        <button type="button" onClick={() => speakResponse(message.content)}
+                          className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted transition hover:text-brand"
+                          aria-label={t("assistant.readAloud")} title={t("assistant.readAloud")}>
+                          <Icon name="volume" className="h-3.5 w-3.5" />{t("assistant.readAloud")}
+                        </button>
+                      )}
+                      {message.id === proposalMessageId && reminderProposal && (
+                        <AssistantReminderProposal proposal={reminderProposal} profileOid={activeProfileOid} />
+                      )}
+                    </>
                   )}
                 </div>
               </article>
@@ -503,6 +538,7 @@ export default function AssistantPage() {
           </div>
 
           {error && <p role="alert" className="mx-4 mb-3 rounded-xl border border-crit/30 bg-crit-soft px-3 py-2 text-sm text-crit sm:mx-6">{error}</p>}
+          {reminderProposalError && <p role="status" className="mx-4 mb-3 text-xs text-high sm:mx-6">{t("assistant.reminderProposalError")}</p>}
 
           <form onSubmit={handleSubmit} className="shrink-0 border-t border-line bg-surface p-3 sm:p-4">
             <input ref={imageInput} type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only"
@@ -560,11 +596,25 @@ export default function AssistantPage() {
             {voiceNotice && <p role="status" className="mt-2 text-xs text-high">{voiceNotice}</p>}
             {!voiceSupported && <p className="mt-2 text-xs text-muted">{t("assistant.voiceUnavailable")}</p>}
             {reportStatus && (
-              <p role={reportStatus === "error" ? "alert" : "status"} className={`mt-2 text-sm ${reportStatus === "error" ? "text-crit" : reportStatus === "done" ? "text-ok" : "text-muted"}`}>
-                {reportStatus === "processing" ? t("assistant.reportProcessing") : reportStatus === "done" ? t("assistant.reportReady") : reportError}
-                {reportId && (reportStatus === "done" || reportStatus === "processing") && <><span> </span><a className="font-semibold underline" href="/timeline">{t("assistant.viewTimeline")}</a></>}
-                {reportStatus === "processing" && reportError && <><span> </span>{reportError}</>}
-              </p>
+              <div role={reportStatus === "error" ? "alert" : "status"} className={`mt-2 space-y-2 text-sm ${reportStatus === "error" ? "text-crit" : reportStatus === "done" ? "text-ok" : "text-muted"}`}>
+                <p>{reportStatus === "processing" ? t("assistant.reportProcessing") : reportStatus === "done" ? t("assistant.reportReady") : reportError}</p>
+                {reportStatus === "done" && reportId && (
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className="btn btn-soft !min-h-8 !px-3 text-xs"
+                      disabled={sending || loadingHistory}
+                      onClick={() => {
+                        setActiveDocumentId(reportId);
+                        void sendMessage(t("assistant.reportQuestion"), reportId);
+                      }}>
+                      {t("assistant.discussReport")}
+                    </button>
+                    <Link className="btn btn-ghost !min-h-8 !px-3 text-xs"
+                      href={`/documents/${reportId}${activeProfileOid ? `?profile_oid=${encodeURIComponent(activeProfileOid)}` : ""}`}>
+                      {t("assistant.reviewReport")}
+                    </Link>
+                  </div>
+                )}
+              </div>
             )}
             <p className="mt-2 text-xs leading-5 text-muted">{t("assistant.voiceLanguageHint")} {t("assistant.emergency")}</p>
             <p className="mt-1 text-xs leading-5 text-muted">{t("assistant.imageNote")}</p>
