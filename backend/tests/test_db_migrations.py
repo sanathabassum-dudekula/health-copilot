@@ -60,6 +60,9 @@ def test_init_db_adds_profile_fields_to_existing_schema(monkeypatch, tmp_path):
         )
 
     monkeypatch.setattr(db, "engine", legacy_engine)
+    monkeypatch.setattr(
+        db, "SessionLocal", sessionmaker(legacy_engine, expire_on_commit=False)
+    )
 
     db.init_db()
 

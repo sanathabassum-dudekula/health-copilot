@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, Profile, AccountUser } from "./api";
+import { api, ApiRequestError, Profile, AccountUser } from "./api";
 import { ToastProvider } from "./components/Toast";
 import Icon, { IconName } from "./components/Icon";
 import { EmptyState, Segmented } from "./components/ui";
@@ -79,7 +79,14 @@ function Layout({ children }: { children: ReactNode }) {
   const reload = useCallback(() => {
     api.profile()
       .then((p) => { setProfile(p); setDown(false); })
-      .catch(() => setDown(true));
+      .catch((error) => {
+        if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) {
+          setProfile(null);
+          setDown(false);
+          return;
+        }
+        setDown(true);
+      });
   }, []);
 
   useEffect(() => {
@@ -102,14 +109,21 @@ function Layout({ children }: { children: ReactNode }) {
           if (!cancelled) { setProfile(p); setDown(false); }
         });
       })
-      .catch(async () => {
+      .catch(async (error) => {
         if (cancelled) return;
         setAccount(null);
         try {
           const p = await api.profile();
           if (!cancelled) { setProfile(p); setDown(false); }
-        } catch {
-          if (!cancelled) { setDown(true); }
+        } catch (profileError) {
+          if (!cancelled) {
+            if (profileError instanceof ApiRequestError && (profileError.status === 401 || profileError.status === 403)) {
+              setProfile(null);
+              setDown(false);
+              return;
+            }
+            setDown(true);
+          }
         }
       })
       .finally(() => {

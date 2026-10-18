@@ -33,14 +33,25 @@ function visitId(): string {
   }
 }
 
+export class ApiRequestError extends Error {
+  status?: number;
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+  }
+}
+
 async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set("X-Visit", visitId());
   if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
   const r = await fetch(BASE + path, { ...init, headers });
   if (!r.ok) {
-    const detail = (await r.json().catch(() => ({}))).detail;  // 422s carry a list of field errors
-    throw new Error((Array.isArray(detail) ? detail[0]?.msg : detail) ?? r.statusText);
+    const payload = await r.json().catch(() => ({}));
+    const detail = payload.detail;  // 422s carry a list of field errors
+    const message = (Array.isArray(detail) ? detail[0]?.msg : detail) ?? r.statusText;
+    throw new ApiRequestError(typeof message === "string" ? message : "Request failed", r.status);
   }
   return r.status === 204 ? (undefined as T) : r.json();
 }

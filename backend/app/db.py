@@ -87,7 +87,7 @@ def init_db():
             }
             new_columns = {
                 "review_status": "VARCHAR NOT NULL DEFAULT 'pending'",
-                "reviewed_at": "DATETIME",
+                "reviewed_at": "TIMESTAMP",
                 "reviewed_by_profile_id": "INTEGER",
             }
             for name, sql_type in new_columns.items():
