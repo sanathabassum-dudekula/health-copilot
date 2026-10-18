@@ -6,6 +6,7 @@ import { api, Doc } from "@/api";
 import { useProfile } from "@/Shell";
 import Icon, { IconName } from "@/components/Icon";
 import RangeGauge from "@/components/RangeGauge";
+import HealthInsightsPanel from "@/components/HealthInsightsPanel";
 import { Badge, DOC_ICON, EmptyState, FLAG, fmtDate, SectionTitle, Skeleton, Spinner } from "@/components/ui";
 
 const Stat = ({ icon, value, label, tone, d }: { icon: IconName; value: number; label: string; tone: string; d: number }) => (
@@ -55,6 +56,7 @@ export default function Home() {
             </div>
           </div>
           <div className="flex gap-3">
+            <Link href="/assistant" className="btn btn-primary"><Icon name="message" className="h-4 w-4" />{t("assistant.open")}</Link>
             <Link href="/upload" className="btn btn-ghost border border-[#B9DED5] bg-white text-[#123C46] shadow-sm hover:bg-[#F3FAF7]"><Icon name="plus" className="h-4 w-4" strokeWidth={2.4} />{t("nav.upload")}</Link>
             <Link href="/timeline" className="btn btn-ghost">{t("nav.timeline")}</Link>
           </div>
@@ -132,6 +134,7 @@ export default function Home() {
               </Link></li>))}
           </ul>
         </section>)}
+      <HealthInsightsPanel />
     </div>
   );
 }

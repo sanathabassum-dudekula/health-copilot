@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { api, Doc, Summary } from "@/api";
+import { api, Doc, DocumentExtraction, Summary } from "@/api";
 import AbnormalCard from "@/components/AbnormalCard";
 import Icon from "@/components/Icon";
 import SummaryCard from "@/components/SummaryCard";
@@ -36,21 +36,58 @@ export default function DocumentDetail() {
   const { t, i18n } = useTranslation();
   const [doc, setDoc] = useState<Doc | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [summaryError, setSummaryError] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewError, setReviewError] = useState(false);
+  const [fileError, setFileError] = useState(false);
+  const [draftExtraction, setDraftExtraction] = useState<DocumentExtraction | null>(null);
+  const [hasExtractionEdits, setHasExtractionEdits] = useState(false);
   const [file, setFile] = useState<{ url: string; type: string } | null>(null);
   const [tab, setTab] = useState<Tab>("summary");
 
-  useEffect(() => {  // poll until the summary lands; extracted data shows as soon as status is "summarizing"
+  useEffect(() => {  // poll until processing and summary generation finish
+    setDoc(null);
+    setSummary(null);
+    setDraftExtraction(null);
+    setHasExtractionEdits(false);
     let timer: number;
     const load = () => api.doc(id).then((d) => { setDoc(d); if (d.status === "processing" || d.status === "summarizing") timer = window.setTimeout(load, 1000); });
     load();
     return () => clearTimeout(timer);
   }, [id]);
-  useEffect(() => { if (doc?.source === "upload" && doc.status !== "processing") api.file(id).then(setFile).catch(() => {}); }, [id, doc?.source, doc?.status === "processing"]);
+  useEffect(() => {
+    setFile(null);
+    setFileError(false);
+    if (doc?.source !== "upload" || doc.status === "processing") return;
+    let cancelled = false;
+    api.file(id).then((loaded) => {
+      if (!cancelled) setFile(loaded);
+    }).catch(() => {
+      if (!cancelled) setFileError(true);
+    });
+    return () => { cancelled = true; };
+  }, [id, doc?.source, doc?.status === "processing"]);
+  useEffect(() => {
+    if (doc?.extraction) {
+      setDraftExtraction(structuredClone(doc.extraction));
+      setHasExtractionEdits(false);
+    }
+  }, [doc?.id, doc?.extraction]);
   useEffect(() => {  // summary follows the UI language; translations are cached server-side
     if (doc?.status !== "done" || !doc.summary) return;
+    let cancelled = false;
+    setSummary(null);
+    setSummaryError(false);
     setBusy(true);
-    api.summary(id, i18n.language).then(setSummary).catch(() => setSummary(doc.summary!)).finally(() => setBusy(false));
+    api.summary(id, i18n.language.split("-")[0]).then((translated) => {
+      if (!cancelled) setSummary(translated);
+    }).catch(() => {
+      if (!cancelled) setSummaryError(true);
+    }).finally(() => {
+      if (!cancelled) setBusy(false);
+    });
+    return () => { cancelled = true; };
   }, [id, doc, i18n.language]);
 
   if (!doc) return <div className="space-y-4"><Skeleton className="h-24" /><Skeleton className="h-64" /></div>;
@@ -82,8 +119,59 @@ export default function DocumentDetail() {
     [t("documentDetail.menopauseFertility"), women.menopause_or_fertility_notes],
   ] as [string, unknown][]).filter(([, value]) => value !== null && value !== undefined && value !== "" && (!Array.isArray(value) || value.length > 0)) : [];
   const hasData = obs.length || meds.length || doc.conditions?.length || doc.allergies?.length || injuries.length || womenFields.length;
+  const needsReview = doc.review_status === "pending";
   const tabs = [{ value: "summary" as Tab, label: t("tab.summary") }, { value: "data" as Tab, label: t("tab.data") },
     ...(file ? [{ value: "original" as Tab, label: t("tab.original") }] : [])];
+
+  async function submitReview(decision: "confirmed" | "rejected") {
+    if (decision === "rejected" && !window.confirm(t("documentDetail.rejectConfirm"))) return;
+    setReviewBusy(true);
+    setReviewError(false);
+    try {
+      await api.reviewDocument(
+        id,
+        decision,
+        decision === "confirmed" && hasExtractionEdits
+          ? draftExtraction ?? undefined
+          : undefined,
+      );
+      setDoc(await api.doc(id));
+    } catch {
+      setReviewError(true);
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+
+  function updateExtraction<K extends keyof DocumentExtraction>(
+    key: K,
+    value: DocumentExtraction[K],
+  ) {
+    setDraftExtraction((current) => current ? { ...current, [key]: value } : current);
+    setHasExtractionEdits(true);
+  }
+
+  function updateLab(
+    index: number,
+    key: "test_name" | "value" | "unit" | "ref_range",
+    value: string,
+  ) {
+    if (!draftExtraction) return;
+    updateExtraction("lab_results", draftExtraction.lab_results.map((item, i) =>
+      i === index ? { ...item, [key]: value } : item,
+    ));
+  }
+
+  function updateMedicine(
+    index: number,
+    key: "name" | "strength" | "dose_pattern" | "timing" | "duration",
+    value: string,
+  ) {
+    if (!draftExtraction) return;
+    updateExtraction("medications", draftExtraction.medications.map((item, i) =>
+      i === index ? { ...item, [key]: value } : item,
+    ));
+  }
 
   return (
     <div className="space-y-6">
@@ -103,6 +191,133 @@ export default function DocumentDetail() {
         <button className="btn btn-ghost no-print" onClick={() => window.print()}><Icon name="printer" className="h-4 w-4" />{t("print")}</button>
       </header>
 
+      {needsReview && (
+        <section className="card space-y-3 border-high/40 bg-high-soft p-5" aria-labelledby="document-review-title">
+          <div>
+            <h2 id="document-review-title" className="font-semibold">{t("documentDetail.reviewTitle")}</h2>
+            <p className="mt-1 text-sm">{t("documentDetail.reviewDescription")}</p>
+          </div>
+          {draftExtraction && (
+            <div className="space-y-4 rounded-2xl border border-line bg-surface p-4">
+              <label className="block text-sm font-medium">
+                {t("documentDetail.documentDate")}
+                <input
+                  className="input mt-1"
+                  type="date"
+                  value={draftExtraction.doc_date ?? ""}
+                  onChange={(event) => updateExtraction("doc_date", event.target.value || null)}
+                />
+              </label>
+              {draftExtraction.lab_results.map((lab, index) => (
+                <div key={`lab-${index}`} className="grid gap-2 rounded-xl bg-surface-2 p-3 sm:grid-cols-2">
+                  <label className="text-sm">{t("documentDetail.testName")}
+                    <input className="input mt-1" value={lab.test_name} onChange={(event) => updateLab(index, "test_name", event.target.value)} />
+                  </label>
+                  <label className="text-sm">{t("documentDetail.reportedValue")}
+                    <input className="input mt-1" value={lab.value} onChange={(event) => updateLab(index, "value", event.target.value)} />
+                  </label>
+                  <label className="text-sm">{t("documentDetail.unit")}
+                    <input className="input mt-1" value={lab.unit ?? ""} onChange={(event) => updateLab(index, "unit", event.target.value)} />
+                  </label>
+                  <label className="text-sm">{t("documentDetail.referenceRange")}
+                    <input className="input mt-1" value={lab.ref_range ?? ""} onChange={(event) => updateLab(index, "ref_range", event.target.value)} />
+                  </label>
+                  <button
+                    className="btn btn-ghost justify-self-start text-crit"
+                    onClick={() => updateExtraction("lab_results", draftExtraction.lab_results.filter((_, i) => i !== index))}
+                  >{t("documentDetail.removeFinding")}</button>
+                </div>
+              ))}
+              {draftExtraction.medications.map((medicine, index) => (
+                <div key={`medicine-${index}`} className="grid gap-2 rounded-xl bg-surface-2 p-3 sm:grid-cols-2">
+                  <label className="text-sm">{t("documentDetail.medicineName")}
+                    <input className="input mt-1" value={medicine.name} onChange={(event) => updateMedicine(index, "name", event.target.value)} />
+                  </label>
+                  <label className="text-sm">{t("documentDetail.strength")}
+                    <input className="input mt-1" value={medicine.strength ?? ""} onChange={(event) => updateMedicine(index, "strength", event.target.value)} />
+                  </label>
+                  <label className="text-sm">{t("documentDetail.dosePattern")}
+                    <input className="input mt-1" value={medicine.dose_pattern ?? ""} onChange={(event) => updateMedicine(index, "dose_pattern", event.target.value)} />
+                  </label>
+                  <label className="text-sm">{t("documentDetail.timing")}
+                    <input className="input mt-1" value={medicine.timing ?? ""} onChange={(event) => updateMedicine(index, "timing", event.target.value)} />
+                  </label>
+                  <label className="text-sm">{t("documentDetail.duration")}
+                    <input className="input mt-1" value={medicine.duration ?? ""} onChange={(event) => updateMedicine(index, "duration", event.target.value)} />
+                  </label>
+                  <button
+                    className="btn btn-ghost justify-self-start text-crit"
+                    onClick={() => updateExtraction("medications", draftExtraction.medications.filter((_, i) => i !== index))}
+                  >{t("documentDetail.removeFinding")}</button>
+                </div>
+              ))}
+              {draftExtraction.diagnoses.map((diagnosis, index) => (
+                <label key={`diagnosis-${index}`} className="block text-sm">
+                  {t("diagnoses")}
+                  <div className="mt-1 flex gap-2">
+                    <input
+                      className="input"
+                      value={diagnosis.name}
+                      onChange={(event) => updateExtraction("diagnoses", draftExtraction.diagnoses.map((item, i) =>
+                        i === index ? { ...item, name: event.target.value } : item,
+                      ))}
+                    />
+                    <button
+                      className="btn btn-ghost text-crit"
+                      onClick={() => updateExtraction("diagnoses", draftExtraction.diagnoses.filter((_, i) => i !== index))}
+                    >{t("documentDetail.removeFinding")}</button>
+                  </div>
+                </label>
+              ))}
+              {draftExtraction.allergies.map((allergy, index) => (
+                <label key={`allergy-${index}`} className="block text-sm">
+                  {t("allergies")}
+                  <div className="mt-1 flex gap-2">
+                    <input
+                      className="input"
+                      value={allergy}
+                      onChange={(event) => updateExtraction("allergies", draftExtraction.allergies.map((item, i) =>
+                        i === index ? event.target.value : item,
+                      ))}
+                    />
+                    <button
+                      className="btn btn-ghost text-crit"
+                      onClick={() => updateExtraction("allergies", draftExtraction.allergies.filter((_, i) => i !== index))}
+                    >{t("documentDetail.removeFinding")}</button>
+                  </div>
+                </label>
+              ))}
+            </div>
+          )}
+          {fileError && <p role="alert" className="text-sm text-crit">{t("documentDetail.originalUnavailable")}</p>}
+          {reviewError && <p role="alert" className="text-sm text-crit">{t("documentDetail.reviewError")}</p>}
+          <div className="flex flex-wrap gap-2">
+            {file && <button className="btn btn-ghost" onClick={() => setTab("original")}>{t("documentDetail.checkOriginal")}</button>}
+            <button
+              className="btn btn-primary"
+              disabled={reviewBusy || (doc.source === "upload" && !file)}
+              onClick={() => submitReview("confirmed")}
+            >
+              {reviewBusy ? <Spinner /> : <Icon name="check" className="h-4 w-4" />}
+              {t("documentDetail.confirmReview")}
+            </button>
+            <button
+              className="btn btn-ghost"
+              disabled={reviewBusy}
+              onClick={() => submitReview("rejected")}
+            >
+              {t("documentDetail.rejectReview")}
+            </button>
+          </div>
+        </section>
+      )}
+      {doc.review_status === "confirmed" && (
+        <p className="text-sm font-medium text-ok">{t("documentDetail.confirmedStatus")}</p>
+      )}
+      {doc.review_status === "rejected" && (
+        <p className="text-sm font-medium text-muted">{t("documentDetail.rejectedStatus")}</p>
+      )}
+
       {warnings.length > 0 && (
         <div role="alert" className="reveal flex gap-3 rounded-2xl border border-high/40 bg-high-soft p-4 text-sm text-ink">
           <Icon name="alert" className="mt-0.5 h-5 w-5 text-high" />
@@ -116,8 +331,12 @@ export default function DocumentDetail() {
 
       {/* summary and data both render; the inactive one is hidden on screen but still printed */}
       <div className={tab === "summary" ? "" : "hidden print:block"}>
-        {summary
+        {needsReview
+          ? <EmptyState icon="file" title={t("documentDetail.summaryAfterReview")} />
+          : summary
           ? <SummaryCard s={summary} observations={obs} />
+          : summaryError
+            ? <EmptyState icon="alert" title={t("summaryTranslationFailed")} />
           : doc.status === "summarizing"
             ? <div className="card flex items-center gap-3 p-6 text-muted"><Spinner />{t("processing.s3")}</div>
             : <EmptyState icon="file" title={t("noSummary")} />}

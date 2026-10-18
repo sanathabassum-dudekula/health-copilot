@@ -1,5 +1,6 @@
 """End-to-end through the real ingestion pipeline with the LLM stubbed."""
 import io
+import base64
 import uuid
 
 import pytest
@@ -91,19 +92,475 @@ def _visit():
     return {"X-Visit": str(uuid.uuid4())}
 
 
+def test_health_assistant_uses_language_and_profile_context(monkeypatch):
+    from langchain_core.messages import AIMessage
+    from app.routers import assistant
+
+    captured = {}
+
+    class FakeChat:
+        calls = 0
+
+        def invoke(self, messages):
+            captured["messages"] = messages
+            self.calls += 1
+            if self.calls > 1:
+                assert messages[-3].content == "Could these symptoms be an allergic reaction?"
+                assert messages[-1].content == "Is it still there?"
+            return AIMessage(content="இந்த மருந்து ஒவ்வாமையை ஏற்படுத்தலாம்; மருத்துவரிடம் கேளுங்கள்.")
+
+    fake_chat = FakeChat()
+    monkeypatch.setattr(assistant, "chat_model", lambda *args: fake_chat)
+    with TestClient(app, headers=_visit()) as c:
+        c.put("/profile", json={"allergies_text": "Penicillin"})
+        response = c.post(
+            "/assistant/chat",
+            json={
+                "message": "Could these symptoms be an allergic reaction?",
+                "language": "ta",
+            },
+        )
+        follow_up = c.post(
+            "/assistant/chat",
+            json={"message": "Is it still there?", "language": "ta"},
+        )
+        saved_history = c.get("/assistant/history")
+
+    assert response.status_code == 200
+    assert "ஒவ்வாமை" in response.json()["answer"]
+    assert follow_up.status_code == 200
+    assert len(saved_history.json()) == 4
+    assert "Respond in Tamil" in captured["messages"][0].content
+    assert "Penicillin" in captured["messages"][0].content
+
+
+def test_health_assistant_prepares_separate_spoken_language(monkeypatch):
+    from langchain_core.messages import AIMessage
+    from app.routers import assistant
+
+    class LanguageChat:
+        def invoke(self, messages):
+            if "Translate the following health assistant response" in messages[0].content:
+                return AIMessage(content="ఆరోగ్యానికి సంబంధించిన సాధారణ సమాచారం.")
+            return AIMessage(content="General health information.")
+
+    monkeypatch.setattr(assistant, "chat_model", lambda *args: LanguageChat())
+    with TestClient(app, headers=_visit()) as client:
+        response = client.post(
+            "/assistant/chat",
+            json={
+                "message": "How can I stay hydrated?",
+                "language": "en",
+                "voice_language": "te",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["answer"] == "General health information."
+    assert response.json()["spoken_answer"] == "ఆరోగ్యానికి సంబంధించిన సాధారణ సమాచారం."
+    assert response.json()["voice_translation_error"] is False
+
+
+def test_health_assistant_history_is_private_and_deletable(monkeypatch):
+    from langchain_core.messages import AIMessage
+    from app.routers import assistant
+
+    monkeypatch.setattr(
+        assistant,
+        "chat_model",
+        lambda *args: FakeLLM(AIMessage(content="General information only.")),
+    )
+    first_visit = _visit()
+    second_visit = _visit()
+    with TestClient(app, headers=first_visit) as first, TestClient(app, headers=second_visit) as second:
+        first.post("/assistant/chat", json={"message": "Remember this detail."})
+        assert len(first.get("/assistant/history").json()) == 2
+        assert first.get("/profile/timeline").json() == []
+        assert second.get("/assistant/history").json() == []
+        assert first.delete("/assistant/history").status_code == 204
+        assert first.get("/assistant/history").json() == []
+
+
+def test_health_assistant_conversations_have_separate_history(monkeypatch):
+    from langchain_core.messages import AIMessage
+    from app.routers import assistant
+
+    captured = []
+
+    class ConversationChat:
+        def invoke(self, messages):
+            captured.append(messages)
+            return AIMessage(content="I can share general health information.")
+
+    monkeypatch.setattr(assistant, "chat_model", lambda *args: ConversationChat())
+    with TestClient(app, headers=_visit()) as first:
+        first_chat = first.post("/assistant/conversations").json()
+        second_chat = first.post("/assistant/conversations").json()
+        first.post("/assistant/chat", json={
+            "message": "My rash started yesterday.",
+            "conversation_id": first_chat["id"],
+        })
+        first.post("/assistant/chat", json={
+            "message": "I have a headache.",
+            "conversation_id": second_chat["id"],
+        })
+
+        first_history = first.get(
+            f"/assistant/history?conversation_id={first_chat['id']}"
+        ).json()
+        second_history = first.get(
+            f"/assistant/history?conversation_id={second_chat['id']}"
+        ).json()
+        conversations = first.get("/assistant/conversations").json()
+
+        with TestClient(app, headers=_visit()) as other:
+            assert other.get(
+                f"/assistant/history?conversation_id={first_chat['id']}"
+            ).status_code == 404
+            assert other.delete(
+                f"/assistant/conversations/{first_chat['id']}"
+            ).status_code == 404
+
+    assert [message["content"] for message in first_history] == [
+        "My rash started yesterday.",
+        "I can share general health information.",
+    ]
+    assert [message["content"] for message in second_history] == [
+        "I have a headache.",
+        "I can share general health information.",
+    ]
+    assert "My rash started yesterday." not in str(captured[1])
+    assert conversations[0]["id"] == second_chat["id"]
+
+
+def test_health_assistant_accepts_image_attachment_without_saving_image(monkeypatch):
+    from langchain_core.messages import AIMessage
+    from app.routers import assistant
+
+    captured = {}
+
+    class ImageChat:
+        def invoke(self, messages):
+            captured["messages"] = messages
+            return AIMessage(content="I can share general information about this image.")
+
+    monkeypatch.setattr(assistant, "chat_model", lambda *args: ImageChat())
+    with TestClient(app, headers=_visit()) as c:
+        response = c.post(
+            "/assistant/chat",
+            json={
+                "message": "What should I know about this?",
+                "images": [{
+                    "mime_type": "image/png",
+                    "data_base64": base64.b64encode(_png()).decode("ascii"),
+                }],
+            },
+        )
+        history = c.get("/assistant/history").json()
+
+    assert response.status_code == 200
+    user_message = next(message for message in captured["messages"][-1].content if message["type"] == "text")
+    assert user_message["text"] == "What should I know about this?"
+    assert any(block["type"] == "image" for block in captured["messages"][-1].content)
+    assert "image files are not saved" in history[-2]["content"]
+
+
+def test_health_assistant_rejects_invalid_image_and_sets_health_scope(monkeypatch):
+    from langchain_core.messages import AIMessage
+    from app.routers import assistant
+
+    captured = {}
+
+    class ScopeChat:
+        def invoke(self, messages):
+            captured["system"] = messages[0].content
+            return AIMessage(content="I can help with health questions.")
+
+    monkeypatch.setattr(assistant, "chat_model", lambda *args: ScopeChat())
+    with TestClient(app, headers=_visit()) as c:
+        invalid = c.post(
+            "/assistant/chat",
+            json={"message": "Check this", "images": [{"mime_type": "image/png", "data_base64": "not-image"}]},
+        )
+        c.post("/assistant/chat", json={"message": "Can you write a poem?"})
+
+    assert invalid.status_code == 422
+    assert "Only answer questions related to human health" in captured["system"]
+    assert "Do not diagnose fractures" in captured["system"]
+
+
+def test_health_assistant_rejects_blank_message():
+    with TestClient(app, headers=_visit()) as c:
+        response = c.post("/assistant/chat", json={"message": "   "})
+    assert response.status_code == 422
+
+
+def test_reminders_support_recurring_and_linked_family_profiles():
+    with TestClient(app, headers=_visit()) as owner:
+        family = owner.post("/family", json={"name": "Parent"}).json()
+        response = owner.post(
+            f"/reminders?profile_oid={family['oid']}",
+            json={
+                "title": "Review prescription",
+                "spoken_title": "Prescription review",
+                "spoken_details": "Check the confirmed directions.",
+                "due_at": "2026-10-17T09:00:00+05:30",
+                "recurrence": "monthly",
+            },
+        )
+        assert response.status_code == 201
+        reminder = response.json()
+        assert reminder["profile_oid"] == family["oid"]
+        assert reminder["spoken_title"] == "Prescription review"
+        assert reminder["spoken_details"] == "Check the confirmed directions."
+        assert reminder["due_at"] == "2026-10-17T03:30:00+00:00"
+
+        completed = owner.post(
+            f"/reminders/{reminder['id']}/complete?profile_oid={family['oid']}"
+        )
+        assert completed.status_code == 200
+        assert completed.json()["status"] == "pending"
+        assert completed.json()["due_at"] == "2026-11-17T03:30:00+00:00"
+
+        with TestClient(app, headers=_visit()) as other:
+            denied = other.get(f"/reminders?profile_oid={family['oid']}")
+        assert denied.status_code == 404
+
+
+def test_profile_saves_separate_voice_language_and_voice_reminder_preference():
+    with TestClient(app, headers=_visit()) as client:
+        response = client.put(
+            "/profile",
+            json={
+                "preferred_language": "en",
+                "preferred_voice_language": "te",
+                "voice_reminders_enabled": True,
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["language"] == "en"
+        assert response.json()["voice_language"] == "te"
+        assert response.json()["voice_reminders_enabled"] is True
+        assert client.get("/profile").json()["voice_language"] == "te"
+
+
+def test_routine_suggestions_keep_medicine_schedules_confirmed_and_separate(monkeypatch):
+    from sqlalchemy import select
+
+    from app.db import SessionLocal
+    from app.models import Document, Medication, Profile, Visit
+    from app.routers import reminders
+
+    captured = {}
+
+    class StubStructured:
+        def invoke(self, messages):
+            captured["prompt"] = messages[0]["content"]
+            return reminders.RoutinePlan(
+                suggestions=[
+                    reminders.RoutineSuggestion(
+                        title="Take a gentle stretch break",
+                        details="Try a comfortable stretch if it feels suitable.",
+                        spoken_title="Stretch break",
+                        spoken_details="A gentle stretch break.",
+                        local_time="15:00",
+                        category="wellness",
+                    )
+                ],
+                note="These are general suggestions to review.",
+            )
+
+    monkeypatch.setattr(reminders, "structured", lambda *_: StubStructured())
+    visit = _visit()
+    with TestClient(app, headers=visit) as client:
+        client.get("/profile")
+        with SessionLocal() as db:
+            profile = db.scalar(
+                select(Profile)
+                .join(Visit, Visit.user_id == Profile.user_id)
+                .where(Visit.token == visit["X-Visit"])
+            )
+            confirmed = Document(
+                profile_id=profile.id,
+                status="done",
+                source="upload",
+                review_status="confirmed",
+            )
+            pending = Document(
+                profile_id=profile.id,
+                status="done",
+                source="upload",
+                review_status="pending",
+            )
+            db.add_all([confirmed, pending])
+            db.flush()
+            db.add_all([
+                Medication(
+                    profile_id=profile.id,
+                    document_id=confirmed.id,
+                    brand_name="Confirmed medicine",
+                    timing="after breakfast",
+                ),
+                Medication(
+                    profile_id=profile.id,
+                    document_id=pending.id,
+                    brand_name="Unreviewed medicine",
+                    timing="morning",
+                ),
+            ])
+            db.commit()
+
+        schedule_response = client.get("/reminders/confirmed-prescriptions")
+        response = client.post(
+            "/reminders/suggestions",
+            json={"written_language": "en", "voice_language": "hi"},
+        )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["suggestions"][0]["category"] == "wellness"
+    assert result["suggestions"][0]["local_time"] == "15:00"
+    assert schedule_response.status_code == 200
+    assert [item["name"] for item in schedule_response.json()] == [
+        "Confirmed medicine"
+    ]
+    assert "Do not provide medication reminders" in captured["prompt"]
+    assert "Hindi" in captured["prompt"]
+
+
+def test_insights_are_cautious_and_do_not_create_risk_scores():
+    visit = _visit()
+    with TestClient(app, headers=visit) as client:
+        response = client.get("/insights")
+    assert response.status_code == 200
+    result = response.json()
+    assert result["flagged_results"] == []
+    assert result["trends"] == []
+    assert "risk_score" not in result
+    assert result["wellness"]
+
+
+def test_insights_include_same_test_trends_and_document_follow_up():
+    from datetime import date
+    from app.db import SessionLocal
+    from app.models import Document, Observation, Visit
+
+    visit = _visit()
+    with TestClient(app, headers=visit) as client:
+        client.get("/profile")
+        with SessionLocal() as db:
+            visit_record = db.get(Visit, visit["X-Visit"])
+            profile = visit_record.user.profile
+            document = Document(
+                profile_id=profile.id,
+                status="done",
+                review_status="confirmed",
+                source="upload",
+                doc_date=date(2026, 8, 2),
+                extraction={"follow_up": "Discuss this result with your clinician."},
+                summary={"next_steps": ["Bring the report to your appointment."]},
+            )
+            db.add(document)
+            db.flush()
+            db.add_all([
+                Observation(
+                    profile_id=profile.id,
+                    document_id=document.id,
+                    display_name="Hemoglobin",
+                    value_num=10.0,
+                    unit="g/dL",
+                    interpretation="L",
+                    effective_at=date(2026, 7, 1),
+                ),
+                Observation(
+                    profile_id=profile.id,
+                    document_id=document.id,
+                    display_name="Hemoglobin",
+                    value_num=11.0,
+                    unit="g/dL",
+                    interpretation="L",
+                    effective_at=date(2026, 8, 2),
+                ),
+            ])
+            db.commit()
+        result = client.get("/insights").json()
+    assert result["trends"][0]["direction"] == "increased"
+    assert result["trends"][0]["previous_value"] == 10.0
+    assert result["trends"][0]["latest_value"] == 11.0
+    assert "Discuss this result with your clinician." in result["follow_ups"]
+    assert "Bring the report to your appointment." in result["follow_ups"]
+
+
+def test_assistant_can_use_only_a_linked_family_profiles_history(monkeypatch):
+    from langchain_core.messages import AIMessage
+    from app.routers import assistant
+
+    class FamilyChat:
+        def invoke(self, messages):
+            return AIMessage(content="General health information.")
+
+    monkeypatch.setattr(assistant, "chat_model", lambda *args: FamilyChat())
+    with TestClient(app, headers=_visit()) as owner:
+        member = owner.post("/family", json={"name": "Child"}).json()
+        conversation = owner.post(
+            f"/assistant/conversations?profile_oid={member['oid']}"
+        ).json()
+        response = owner.post("/assistant/chat", json={
+            "message": "How can I prepare for the visit?",
+            "conversation_id": conversation["id"],
+            "profile_oid": member["oid"],
+        })
+        assert response.status_code == 200
+        assert len(owner.get(
+            f"/assistant/history?profile_oid={member['oid']}"
+        ).json()) == 2
+        with TestClient(app, headers=_visit()) as other:
+            denied = other.get(
+                f"/assistant/history?profile_oid={member['oid']}"
+            )
+    assert denied.status_code == 404
+
+
 def test_full_flow(monkeypatch):
+    from app.db import SessionLocal
+    from app.models import Visit
+    from app.routers.assistant import _health_context
     from app.routers import documents
     monkeypatch.setattr(
         documents, 'classify_document', _accept_medical_document
     )
     monkeypatch.setattr(graph, "structured", lambda *a: FakeLLM(EXTRACTION))
     monkeypatch.setattr(summarize, "structured", lambda *a: FakeLLM(SUMMARY))
-    with TestClient(app, headers=_visit()) as c:
+    headers = _visit()
+    with TestClient(app, headers=headers) as c:
         assert c.post("/documents", files={"file": ("a.txt", b"x", "text/plain")}).status_code == 415
 
         r = c.post("/documents", files={"file": ("a.png", _png(), "image/png")})
         d = c.get(f"/documents/{r.json()['id']}").json()
         assert d["status"] == "done", d["extraction"]
+        assert d["review_status"] == "pending"
+        assert d["summary"] is None
+        assert c.get(f"/documents/{d['id']}/summary").status_code == 409
+        assert c.get("/profile").json()["conditions"] == []
+        assert c.get("/profile/timeline").json()[0]["type"] == "document_pending"
+        assert c.get("/insights").json()["flagged_results"] == []
+        pending_bundle = c.get("/profile/fhir").json()
+        assert not any(
+            entry["resource"]["resourceType"] == "Composition"
+            for entry in pending_bundle["entry"]
+        )
+        with SessionLocal() as db:
+            visit_record = db.get(Visit, headers["X-Visit"])
+            context = _health_context(visit_record.user.profile, db)
+        assert context["recorded_conditions"] == []
+        assert context["recorded_current_medicines"] == []
+        assert context["recent_test_results"] == []
+        assert c.post(
+            f"/documents/{d['id']}/review",
+            json={"decision": "confirmed"},
+        ).json()["review_status"] == "confirmed"
+        d = c.get(f"/documents/{d['id']}").json()
+
         hb = next(o for o in d["observations"] if o["loinc_code"] == "718-7")
         assert hb["interpretation"] == "L"  # female range 12-15
         assert next(o for o in d["observations"] if o["display_name"] == "Potassium")["interpretation"] == "HH"
@@ -126,13 +583,91 @@ def test_full_flow(monkeypatch):
         otp = c.post("/abha/link", json={"abha": "12-3456-7890-1234"}).json()["demo_otp"]
         assert c.post("/abha/verify", json={"otp": "000000"}).status_code == 401
         assert c.post("/abha/verify", json={"otp": otp}).status_code == 200
-        assert len(c.post("/abha/import").json()["imported_document_ids"]) == 2
+        imported = c.post("/abha/import").json()["imported_document_ids"]
+        assert len(imported) == 2
+        for imported_id in imported:
+            assert c.post(
+                f"/documents/{imported_id}/review",
+                json={"decision": "confirmed"},
+            ).status_code == 200
         assert c.post("/abha/import").json()["imported_document_ids"] == []  # idempotent
         assert any(i["source"] == "abdm" for i in c.get("/profile/timeline").json())
 
         Bundle.model_validate(c.get("/profile/fhir").json())
         assert c.delete("/profile").status_code == 204
         assert c.get("/documents").json() == []  # data gone; a fresh demo profile is recreated
+
+
+def test_rejecting_extraction_removes_unverified_health_facts(monkeypatch):
+    from app.routers import documents
+
+    monkeypatch.setattr(
+        documents, "classify_document", _accept_medical_document
+    )
+    monkeypatch.setattr(graph, "structured", lambda *a: FakeLLM(EXTRACTION))
+    monkeypatch.setattr(summarize, "structured", lambda *a: FakeLLM(SUMMARY))
+
+    with TestClient(app, headers=_visit()) as client:
+        uploaded = client.post(
+            "/documents",
+            files={"file": ("report.png", _png(), "image/png")},
+        )
+        doc_id = uploaded.json()["id"]
+
+        rejected = client.post(
+            f"/documents/{doc_id}/review",
+            json={"decision": "rejected"},
+        )
+        assert rejected.status_code == 200
+        assert rejected.json()["review_status"] == "rejected"
+        details = client.get(f"/documents/{doc_id}").json()
+        assert details["extraction"] is None
+        assert details["summary"] is None
+        assert details["observations"] == []
+        assert details["medications"] == []
+        assert client.get("/profile").json()["conditions"] == []
+        assert client.get("/profile/timeline").json() == []
+        assert client.get("/insights").json()["trends"] == []
+        assert client.post(
+            f"/documents/{doc_id}/review",
+            json={"decision": "confirmed"},
+        ).status_code == 409
+
+
+def test_review_can_correct_extracted_values_before_confirmation(monkeypatch):
+    from app.routers import documents
+
+    monkeypatch.setattr(
+        documents, "classify_document", _accept_medical_document
+    )
+    monkeypatch.setattr(graph, "structured", lambda *a: FakeLLM(EXTRACTION))
+    monkeypatch.setattr(summarize, "structured", lambda *a: FakeLLM(SUMMARY))
+    corrected = EXTRACTION.model_dump()
+    corrected["lab_results"][0]["value"] = "14.8"
+    corrected["medications"][0]["name"] = "Verified medicine"
+
+    with TestClient(app, headers=_visit()) as client:
+        uploaded = client.post(
+            "/documents",
+            files={"file": ("report.png", _png(), "image/png")},
+        )
+        doc_id = uploaded.json()["id"]
+        response = client.post(
+            f"/documents/{doc_id}/review",
+            json={"decision": "confirmed", "extraction": corrected},
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["reviewed_at"] is not None
+
+        details = client.get(f"/documents/{doc_id}").json()
+        hemoglobin = next(
+            item for item in details["observations"]
+            if item["display_name"] == "Haemoglobin"
+        )
+        assert hemoglobin["value_num"] == 14.8
+        assert hemoglobin["interpretation"] == "N"
+        assert details["medications"][0]["brand_name"] == "Verified medicine"
+        assert details["extraction"]["lab_results"][0]["value"] == "14.8"
 
 
 def test_extraction_failure_marks_failed(monkeypatch):
@@ -172,12 +707,18 @@ def test_digital_pdf_skips_images_and_pretranslates(monkeypatch):
     monkeypatch.setattr(graph, "structured", lambda *a: Spy(EXTRACTION))
     monkeypatch.setattr(summarize, "structured", lambda *a: FakeLLM(SUMMARY))
     with TestClient(app, headers=_visit()) as c:
-        c.put("/profile", json={"preferred_language": "hi"})
+        c.put("/profile", json={"preferred_language": "ta"})
         r = c.post("/documents", files={"file": ("a.pdf", pdf.tobytes(), "application/pdf")})
         d = c.get(f"/documents/{r.json()['id']}").json()
         assert d["status"] == "done" and sent["kinds"] == ["text", "image"]  # only the blank page went as an image
         doc = summarize.SessionLocal().get(summarize.Document, d["id"])
-        assert "hi" in doc.summary_i18n  # ready before the reader asks
+        assert "ta" in doc.summary_i18n  # ready before the reader asks
+        assert c.get(f"/documents/{d['id']}/summary?lang=ta").status_code == 409
+        assert c.post(
+            f"/documents/{d['id']}/review",
+            json={"decision": "confirmed"},
+        ).status_code == 200
+        assert c.get(f"/documents/{d['id']}/summary?lang=ta").status_code == 200
         c.delete("/profile")
 
 
@@ -224,6 +765,10 @@ def test_injury_timeline_is_opt_in_and_private_fields_stay_hidden(monkeypatch):
 
         details = c.get(f"/documents/{doc_id}").json()
         assert details["status"] == "done", details
+        assert c.post(
+            f"/documents/{doc_id}/review",
+            json={"decision": "confirmed"},
+        ).status_code == 200
 
         default_items = c.get("/profile/timeline").json()
         assert not any(item["type"] == "fracture_injury" for item in default_items)
@@ -287,6 +832,10 @@ def test_injury_timeline_date_fallbacks(monkeypatch):
         doc_id = r.json()["id"]
         details = c.get(f"/documents/{doc_id}").json()
         assert details["status"] == "done", details
+        assert c.post(
+            f"/documents/{doc_id}/review",
+            json={"decision": "confirmed"},
+        ).status_code == 200
 
         response = c.get("/profile/timeline?types=injuries")
         assert response.status_code == 200, response.text
@@ -370,4 +919,3 @@ def test_unfamiliar_medical_document_is_accepted(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["status"] == "processing"
-

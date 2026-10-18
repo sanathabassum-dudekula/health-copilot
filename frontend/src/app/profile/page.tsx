@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { api, Profile } from "@/api";
 import { useProfile } from "@/Shell";
@@ -11,14 +12,22 @@ import { LANGS, Lang } from "@/i18n";
 export default function ProfilePage() {
   const { t, i18n } = useTranslation();
   const { profile, reload } = useProfile();
+  const router = useRouter();
 
+  const [setupMode, setSetupMode] = useState(false);
   const [name, setName] = useState("");
   const [dob, setDob] = useState("");
   const [sex, setSex] = useState("");
   const [language, setLanguage] = useState<Lang>("en");
+  const [voiceLanguage, setVoiceLanguage] = useState<Lang>("en");
+  const [voiceReminders, setVoiceReminders] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setSetupMode(new URLSearchParams(window.location.search).get("setup") === "1");
+  }, []);
 
   useEffect(() => {
     if (!profile) return;
@@ -26,6 +35,8 @@ export default function ProfilePage() {
     setDob(profile.dob || "");
     setSex(profile.sex || "");
     setLanguage((profile.language in LANGS ? profile.language : "en") as Lang);
+    setVoiceLanguage((profile.voice_language in LANGS ? profile.voice_language : "en") as Lang);
+    setVoiceReminders(profile.voice_reminders_enabled);
   }, [profile]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -46,9 +57,13 @@ export default function ProfilePage() {
         sex?: string;
         dob?: string;
         preferred_language: string;
+        preferred_voice_language: Lang;
+        voice_reminders_enabled: boolean;
       } = {
         name: name.trim(),
         preferred_language: language,
+        preferred_voice_language: voiceLanguage,
+        voice_reminders_enabled: voiceReminders,
       };
 
       if (sex) payload.sex = sex;
@@ -63,6 +78,10 @@ export default function ProfilePage() {
       }
       api.setLanguage(language).catch(() => {});
       reload();
+      if (setupMode) {
+        router.replace("/health");
+        return;
+      }
       setMessage(t("profile.saved"));
     } catch {
       setError(t("profile.error"));
@@ -107,11 +126,15 @@ export default function ProfilePage() {
               ))}
             </select>
           </label>
-          <Link href="/" className="btn btn-ghost border border-[#B9DED5] bg-white text-[#123C46]">{t("profile.switchProfile")}</Link>
+          {setupMode ? (
+            <Link href="/health" className="btn btn-ghost border border-[#B9DED5] bg-white text-[#123C46]">{t("profile.skipSetup")}</Link>
+          ) : (
+            <Link href="/" className="btn btn-ghost border border-[#B9DED5] bg-white text-[#123C46]">{t("profile.switchProfile")}</Link>
+          )}
         </div>
         <div className="w-full">
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">{t("profile.title")}</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted">{t("profile.subtitle")}</p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">{setupMode ? t("profile.setupTitle") : t("profile.title")}</h1>
+        <p className="mt-2 max-w-2xl text-sm text-muted">{setupMode ? t("profile.setupSubtitle") : t("profile.subtitle")}</p>
         </div>
       </header>
 
@@ -207,6 +230,32 @@ export default function ProfilePage() {
                 ))}
               </select>
             </label>
+
+            <label className="block text-sm font-medium">
+              {t("profile.voiceLanguage")}
+              <select
+                className="input mt-2 w-full"
+                value={voiceLanguage}
+                onChange={(e) => setVoiceLanguage(e.target.value as Lang)}
+              >
+                {(Object.keys(LANGS) as Lang[]).map((key) => (
+                  <option key={key} value={key}>{LANGS[key]}</option>
+                ))}
+              </select>
+              <span className="mt-1 block text-xs font-normal text-muted">{t("profile.voiceLanguageDescription")}</span>
+            </label>
+            <label className="flex items-start gap-3 rounded-xl border border-line p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={voiceReminders}
+                onChange={(e) => setVoiceReminders(e.target.checked)}
+                className="mt-1"
+              />
+              <span>
+                <span className="block font-medium">{t("profile.voiceReminders")}</span>
+                <span className="mt-1 block text-xs font-normal text-muted">{t("profile.voiceRemindersDescription")}</span>
+              </span>
+            </label>
           </div>
 
           {message && <p role="status" className="text-sm text-ok">{message}</p>}
@@ -214,7 +263,7 @@ export default function ProfilePage() {
 
           <div className="flex justify-end border-t border-line pt-5">
             <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? t("profile.saving") : t("profile.save")}
+              {saving ? t("profile.saving") : setupMode ? t("profile.saveAndContinue") : t("profile.save")}
             </button>
           </div>
         </form>

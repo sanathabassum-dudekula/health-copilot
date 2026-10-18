@@ -20,7 +20,7 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await api.authLogin({ email: email.trim(), password });
-      router.replace("/health");
+      router.replace("/profile?setup=1");
     } catch (e) {
       setError(e instanceof Error && e.message === "Incorrect email or password."
         ? t("auth.invalidCredentials")

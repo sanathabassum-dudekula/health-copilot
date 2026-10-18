@@ -6,6 +6,7 @@ import { Badge, FLAG, fmtDate, fmtMonth } from "./ui";
 
 const KIND: Record<string, { icon: IconName; tone: string }> = {
   document: { icon: "file", tone: "brand" }, abnormal_result: { icon: "flask", tone: "high" },
+  document_pending: { icon: "file", tone: "high" },
   medicine_started: { icon: "pill", tone: "med" }, medicine_ended: { icon: "pill", tone: "muted" }, diagnosis: { icon: "steth", tone: "dx" },
 };
 
@@ -38,6 +39,7 @@ export default function Timeline({ items }: { items: TimelineItem[] }) {
                       <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-muted">
                         {i.detail && <span>{i.detail}</span>}
                         {f && <Badge tone={f.tone} icon={f.icon}>{t(f.label)}</Badge>}
+                        {i.review_status === "pending" && <Badge tone="high" icon="alert">{t("documentDetail.pendingReview")}</Badge>}
                         {i.source === "abdm" && <Badge tone="med" icon="shield">{t("abdmBadge")}</Badge>}
                       </div>
                     </div>

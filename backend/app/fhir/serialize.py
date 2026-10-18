@@ -83,7 +83,7 @@ def to_bundle(p: Profile) -> dict:
             "identifier": [{"system": ABHA_SYSTEM, "value": p.abha_number} if p.abha_number else None,
                            {"system": f"{ABHA_SYSTEM}/address", "value": p.abha_address} if p.abha_address else None]}]
     for d in p.documents:
-        if d.status != "done":
+        if d.status != "done" or d.review_status != "confirmed":
             continue
         code, text = ABDM_TYPE.get(d.doc_type or "other", ABDM_TYPE["other"])
         parts = {"Observations": [_observation(o, pid) for o in d.observations],

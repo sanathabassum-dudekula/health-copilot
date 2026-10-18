@@ -51,6 +51,51 @@ export type Summary = {
   abnormal_explanations: { test: string; value: string; status: string; what_it_means: string; common_reasons: string; question_for_doctor: string }[];
   medicines_explained: { name: string; general_purpose: string; how_to_take: string }[];
 };
+
+export type RoutineSuggestion = {
+  title: string;
+  details: string;
+  spoken_title: string;
+  spoken_details: string;
+  local_time: string;
+  category: "meal" | "sleep" | "wellness";
+};
+
+export type ConfirmedPrescriptionSchedule = {
+  name: string;
+  strength: string | null;
+  dose_pattern: string | null;
+  timing: string | null;
+  document_id: number;
+};
+export type DocumentExtraction = {
+  doc_type: string;
+  doc_date: string | null;
+  patient_name?: string | null;
+  facility?: string | null;
+  practitioner?: string | null;
+  admission_date?: string | null;
+  discharge_date?: string | null;
+  diagnoses: { name: string; source_text: string; confidence: number }[];
+  medications: {
+    name: string; strength?: string | null; form?: string | null;
+    dose_pattern?: string | null; timing?: string | null; duration?: string | null;
+    source_text: string; confidence: number;
+  }[];
+  lab_results: {
+    test_name: string; value: string; unit?: string | null;
+    ref_range?: string | null; flag_on_report?: string | null;
+    source_text: string; confidence: number;
+  }[];
+  allergies: string[];
+  impression?: string | null;
+  follow_up?: string | null;
+  languages_detected?: string[];
+  handwritten?: boolean;
+  fractures_or_injuries?: FractureInjury[];
+  womens_health?: WomensHealthExtraction | null;
+  needs_human_review?: boolean;
+};
 export type FractureInjury = {
   body_site?: string | null;
   side?: string | null;
@@ -92,24 +137,25 @@ export type WomensHealthExtraction = {
 };
 
 export type Doc = {
-  id: number; doc_type: string | null; doc_date: string | null; facility: string | null; status: string; source: string;
+  id: number; doc_type: string | null; doc_date: string | null; facility: string | null; status: string; review_status: "pending" | "confirmed" | "rejected"; source: string;
   created_at?: string; practitioner?: string | null;
   summary?: Summary | null;
-  extraction?: {
+  extraction?: (DocumentExtraction & {
     _warnings?: string[];
     _error?: string;
-    fractures_or_injuries?: FractureInjury[];
-    womens_health?: WomensHealthExtraction | null;
-  } | null;
+    _rejected?: boolean;
+  }) | null;
   observations?: Obs[]; medications?: Med[]; conditions?: { name: string }[]; allergies?: { substance: string }[];
 };
 export type Obs = { id: number; display_name: string; value_num: number | null; value_text: string | null; unit: string | null; ref_low: number | null; ref_high: number | null; interpretation: string | null; note: string | null };
 export type Med = { id: number; brand_name: string; salt: string | null; strength: string | null; dose_pattern: string | null; timing: string | null; duration_days: number | null };
-export type TimelineItem = { type: string; date: string; document_id: number; title: string; detail: string | null; interpretation?: string; source: string };
+export type TimelineItem = { type: string; date: string; document_id: number; title: string; detail: string | null; interpretation?: string; review_status?: "pending" | "confirmed" | "rejected"; source: string };
 export type Profile = {
   name: string;
   age: number | null;
   language: string;
+  voice_language: string;
+  voice_reminders_enabled: boolean;
   dob: string | null;
   sex: string | null;
   blood_group: string | null;
@@ -156,6 +202,8 @@ export type ProfileFields = {
   emergency_contact_name?: string | null;
   emergency_contact_phone?: string | null;
   preferred_language?: string;
+  preferred_voice_language?: "en" | "hi" | "te" | "ta";
+  voice_reminders_enabled?: boolean;
 };
 
 export type AccountUser = {
@@ -165,6 +213,72 @@ export type AccountUser = {
   preferred_language: string;
 };
 
+export type AssistantMessage = {
+  id: number;
+  conversation_id: number;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+};
+
+export type AssistantConversation = {
+  id: number;
+  title: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AssistantImage = {
+  mime_type: "image/jpeg" | "image/png" | "image/webp";
+  data_base64: string;
+};
+
+export type HealthReminder = {
+  id: number;
+  profile_oid: string | null;
+  document_id: number | null;
+  title: string;
+  details: string | null;
+  spoken_title: string | null;
+  spoken_details: string | null;
+  due_at: string;
+  category: "medication" | "appointment" | "follow_up" | "meal" | "sleep" | "wellness" | "other";
+  recurrence: "none" | "daily" | "weekly" | "monthly";
+  status: "pending" | "completed" | "dismissed";
+  created_at: string;
+};
+
+export type HealthInsights = {
+  profile: { oid: string | null; name: string };
+  flagged_results: {
+    test: string;
+    value: string | number | null;
+    unit: string | null;
+    flag: string;
+    date: string | null;
+    document_id: number;
+  }[];
+  trends: {
+    test: string;
+    unit: string | null;
+    previous_value: number;
+    latest_value: number;
+    previous_date: string | null;
+    latest_date: string | null;
+    direction: "increased" | "decreased" | "stable";
+    latest_flag: string | null;
+    document_id: number;
+  }[];
+  follow_ups: string[];
+  medicine_reminder_suggestions: {
+    name: string;
+    dose_pattern: string | null;
+    timing: string | null;
+    document_id: number;
+  }[];
+  wellness: { kind: "general" | "records" | "add_records" }[];
+};
+
 export const api = {
   authRegister: (body: { email: string; password: string; name: string }) =>
     post<{ user: AccountUser }>("/auth/register", body),
@@ -172,12 +286,77 @@ export const api = {
     post<{ user: AccountUser }>("/auth/login", body),
   authMe: () => req<{ user: AccountUser }>("/auth/me"),
   authLogout: () => post<{ message: string }>("/auth/logout"),
+  assistantConversations: (profileOid?: string) => req<AssistantConversation[]>(`/assistant/conversations${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`),
+  createAssistantConversation: (profileOid?: string) => post<AssistantConversation>(`/assistant/conversations${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`),
+  deleteAssistantConversation: (id: number, profileOid?: string) => req<void>(`/assistant/conversations/${id}${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`, { method: "DELETE" }),
+  assistantHistory: (conversationId?: number, profileOid?: string) => {
+    const query = new URLSearchParams();
+    if (conversationId) query.set("conversation_id", String(conversationId));
+    if (profileOid) query.set("profile_oid", profileOid);
+    const suffix = query.size ? `?${query.toString()}` : "";
+    return req<AssistantMessage[]>(`/assistant/history${suffix}`);
+  },
+  clearAssistantHistory: (profileOid?: string) => req<void>(`/assistant/history${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`, { method: "DELETE" }),
+  assistantChat: (body: {
+    message: string;
+    language: "en" | "hi" | "te" | "ta";
+    voice_language?: "en" | "hi" | "te" | "ta";
+    conversation_id: number;
+    images: AssistantImage[];
+    profile_oid?: string;
+  }) =>
+    post<{
+      answer: string;
+      spoken_answer: string;
+      voice_translation_error: boolean;
+      messages: AssistantMessage[];
+    }>("/assistant/chat", body),
+  reminders: (profileOid?: string, includeInactive = false) => {
+    const query = new URLSearchParams();
+    if (profileOid) query.set("profile_oid", profileOid);
+    if (includeInactive) query.set("include_inactive", "true");
+    return req<HealthReminder[]>(`/reminders${query.size ? `?${query}` : ""}`);
+  },
+  createReminder: (body: {
+    title: string;
+    details?: string;
+    spoken_title?: string;
+    spoken_details?: string;
+    due_at: string;
+    category: HealthReminder["category"];
+    recurrence: HealthReminder["recurrence"];
+    document_id?: number;
+  }, profileOid?: string) =>
+    post<HealthReminder>(`/reminders${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`, body),
+  updateReminder: (id: number, body: Partial<Pick<HealthReminder, "title" | "details" | "due_at" | "category" | "recurrence" | "status">>, profileOid?: string) =>
+    req<HealthReminder>(`/reminders/${id}${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`, { method: "PATCH", body: JSON.stringify(body) }),
+  completeReminder: (id: number, profileOid?: string) =>
+    post<HealthReminder>(`/reminders/${id}/complete${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`),
+  deleteReminder: (id: number, profileOid?: string) =>
+    req<void>(`/reminders/${id}${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`, { method: "DELETE" }),
+  insights: (profileOid?: string) => req<HealthInsights>(`/insights${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`),
+  routineSuggestions: (body: { written_language: "en" | "hi" | "te" | "ta"; voice_language: "en" | "hi" | "te" | "ta" }, profileOid?: string) =>
+    post<{ suggestions: RoutineSuggestion[]; note: string }>(
+      `/reminders/suggestions${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`,
+      body,
+    ),
+  confirmedPrescriptions: (profileOid?: string) =>
+    req<ConfirmedPrescriptionSchedule[]>(`/reminders/confirmed-prescriptions${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`),
   profile: () => req<Profile>("/profile"),
   setLanguage: (preferred_language: string) => req("/profile", { method: "PUT", body: JSON.stringify({ preferred_language }) }),
   updateProfile: (body: ProfileFields) => req<Profile>("/profile", { method: "PUT", body: JSON.stringify(body) }),
-  upload: (f: File) => { const fd = new FormData(); fd.append("file", f); return req<Doc>("/documents", { method: "POST", body: fd }); },
-  docs: () => req<Doc[]>("/documents"),
+  upload: (f: File, profileOid?: string) => { const fd = new FormData(); fd.append("file", f); return req<Doc>(`/documents${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`, { method: "POST", body: fd }); },
+  docs: (profileOid?: string) => req<Doc[]>(`/documents${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`),
   doc: (id: number) => req<Doc>(`/documents/${id}`),
+  reviewDocument: (
+    id: number,
+    decision: "confirmed" | "rejected",
+    extraction?: DocumentExtraction,
+  ) =>
+    post<Doc>(`/documents/${id}/review`, {
+      decision,
+      ...(extraction ? { extraction } : {}),
+    }),
   summary: (id: number, lang: string) => req<Summary>(`/documents/${id}/summary?lang=${lang}`),
   file: async (id: number) => {
     const response = await fetch(`${BASE}/documents/${id}/file`, {
@@ -245,5 +424,3 @@ export const familyApi = {
   remove: (oid: string) =>
     req<void>(`/family/${encodeURIComponent(oid)}`, { method: "DELETE" }),
 };
-
-

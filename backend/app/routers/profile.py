@@ -1,10 +1,12 @@
 from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from ..access import confirmed_document_ids
 from ..auth import current_profile, delete_profile_data
 from ..db import get_db
 from ..fhir.serialize import to_bundle
@@ -27,6 +29,8 @@ class ProfileUpdate(BaseModel):
     emergency_contact_name: str | None = Field(default=None, max_length=120)
     emergency_contact_phone: str | None = Field(default=None, max_length=40)
     preferred_language: str | None = None
+    preferred_voice_language: Literal["en", "hi", "te", "ta"] | None = None
+    voice_reminders_enabled: bool | None = None
 
 
 def _q(db: Session, p: Profile, model, *where):
@@ -52,6 +56,7 @@ def _profile_json(p: Profile, db: Session) -> dict:
         db,
         p,
         Medication,
+        Medication.document_id.in_(confirmed_document_ids(p.id)),
         or_(
             Medication.end_date.is_(None),
             Medication.end_date >= today,
@@ -65,6 +70,7 @@ def _profile_json(p: Profile, db: Session) -> dict:
             db,
             p,
             Observation,
+            Observation.document_id.in_(confirmed_document_ids(p.id)),
             Observation.interpretation.in_(ABNORMAL),
         ),
         key=lambda item: item.effective_at or date.min,
@@ -84,6 +90,8 @@ def _profile_json(p: Profile, db: Session) -> dict:
         "emergency_contact_name": p.emergency_contact_name,
         "emergency_contact_phone": p.emergency_contact_phone,
         "language": p.user.preferred_language,
+        "voice_language": p.user.preferred_voice_language,
+        "voice_reminders_enabled": p.user.voice_reminders_enabled,
         "abha": {
             "number": p.abha_number,
             "address": p.abha_address,
@@ -92,10 +100,22 @@ def _profile_json(p: Profile, db: Session) -> dict:
         # These lists remain based on extracted medical records.
         # They are intentionally separate from the profile form's text fields.
         "conditions": sorted({
-            condition.name for condition in _q(db, p, Condition)
+            condition.name
+            for condition in _q(
+                db,
+                p,
+                Condition,
+                Condition.document_id.in_(confirmed_document_ids(p.id)),
+            )
         }),
         "allergies": sorted({
-            allergy.substance for allergy in _q(db, p, Allergy)
+            allergy.substance
+            for allergy in _q(
+                db,
+                p,
+                Allergy,
+                Allergy.document_id.in_(confirmed_document_ids(p.id)),
+            )
         }),
         "current_medicines": [
             {
@@ -149,6 +169,10 @@ def put_profile(
             if value is not None and value.strip():
                 p.user.preferred_language = value.strip()
             continue
+        if field in {"preferred_voice_language", "voice_reminders_enabled"}:
+            if value is not None:
+                setattr(p.user, field, value)
+            continue
 
         if field == "name":
             if value is None or not value.strip():
@@ -194,9 +218,14 @@ def timeline(
     want = set(types.split(","))
     items = []
 
-    docs = {
+    all_docs = {
         document.id: document
         for document in _q(db, p, Document)
+    }
+    docs = {
+        doc_id: document
+        for doc_id, document in all_docs.items()
+        if document.review_status == "confirmed"
     }
 
     if "reports" in want:
@@ -211,10 +240,23 @@ def timeline(
                     "source": document.source,
                 })
 
+        for document in all_docs.values():
+            if document.status == "done" and document.review_status == "pending":
+                items.append({
+                    "type": "document_pending",
+                    "date": document.doc_date or document.created_at.date(),
+                    "document_id": document.id,
+                    "title": (document.doc_type or "document").replace("_", " "),
+                    "detail": document.facility,
+                    "review_status": document.review_status,
+                    "source": document.source,
+                })
+
         for observation in _q(
             db,
             p,
             Observation,
+            Observation.document_id.in_(confirmed_document_ids(p.id)),
             Observation.interpretation.in_(ABNORMAL),
         ):
             source_document = docs.get(observation.document_id)
@@ -229,7 +271,12 @@ def timeline(
             })
 
     if "medicines" in want:
-        for medicine in _q(db, p, Medication):
+        for medicine in _q(
+            db,
+            p,
+            Medication,
+            Medication.document_id.in_(confirmed_document_ids(p.id)),
+        ):
             source_document = docs.get(medicine.document_id)
             base = {
                 "document_id": medicine.document_id,
@@ -253,7 +300,12 @@ def timeline(
                 })
 
     if "diagnoses" in want:
-        for condition in _q(db, p, Condition):
+        for condition in _q(
+            db,
+            p,
+            Condition,
+            Condition.document_id.in_(confirmed_document_ids(p.id)),
+        ):
             source_document = docs.get(condition.document_id)
             items.append({
                 "type": "diagnosis",

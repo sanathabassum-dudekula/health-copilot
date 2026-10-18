@@ -1,8 +1,10 @@
 import { FLAG } from "./ui";
+import { useTranslation } from "react-i18next";
 
 // Value marker on a track with the reference band highlighted. Axis is derived from the reference range.
 export default function RangeGauge({ value, low, high, unit, flag, compact = false }:
   { value: number; low: number | null; high: number | null; unit?: string | null; flag?: string | null; compact?: boolean }) {
+  const { t } = useTranslation();
   if (low == null && high == null) return null;
   let min: number, max: number, bandLo: number, bandHi: number;
   if (low != null && high != null) {
@@ -18,7 +20,7 @@ export default function RangeGauge({ value, low, high, unit, flag, compact = fal
   if ((low ?? 0) >= 0 && value >= 0) min = Math.max(0, min);
   const pct = (x: number) => `${Math.min(100, Math.max(0, ((x - min) / (max - min)) * 100))}%`;
   const f = FLAG[flag ?? "N"] ?? FLAG.N;
-  const label = `${value}${unit ? ` ${unit}` : ""}, reference ${low ?? "up to"}${low != null && high != null ? "–" : ""}${high ?? " and above"}, ${f.label}`;
+  const label = `${value}${unit ? ` ${unit}` : ""}, ${t("reference")} ${low ?? t("range.upTo")}${low != null && high != null ? "–" : ""}${high ?? t("range.andAbove")}, ${t(f.label)}`;
   const fmt = (n: number) => +n.toFixed(2);
   return (
     <div role="img" aria-label={label} className={compact ? "pb-4 pt-1.5" : "pb-5 pt-2"}>

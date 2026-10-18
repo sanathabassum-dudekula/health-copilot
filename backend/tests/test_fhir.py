@@ -33,7 +33,8 @@ def _profile(db):
 
 def test_export_is_valid_fhir_and_round_trips(db):
     p = _profile(db)
-    d = m.Document(profile_id=p.id, status="done", doc_type="discharge_summary", doc_date=date(2026, 5, 2),
+    d = m.Document(profile_id=p.id, status="done", review_status="confirmed",
+                   doc_type="discharge_summary", doc_date=date(2026, 5, 2),
                    facility="City Hospital", practitioner="Dr R", admission_date=date(2026, 4, 28),
                    discharge_date=date(2026, 5, 2))
     d.observations = [m.Observation(profile_id=p.id, loinc_code="718-7", display_name="Haemoglobin", value_num=10.8,
