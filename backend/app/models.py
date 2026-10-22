@@ -98,6 +98,9 @@ class Profile(Base):
     health_reminders: Mapped[list["HealthReminder"]] = relationship(
         back_populates="profile", cascade=CASCADE
     )
+    vital_signs: Mapped[list["VitalSign"]] = relationship(
+        back_populates="profile", cascade=CASCADE
+    )
 
 
 class FamilyLink(Base):
@@ -186,6 +189,25 @@ class Observation(Base):
     effective_at: Mapped[date | None] = mapped_column(Date)
     confidence: Mapped[float | None] = mapped_column(Float)
     note: Mapped[str | None] = mapped_column(String)
+
+
+class VitalSign(Base):
+    __tablename__ = "vital_signs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), index=True
+    )
+    metric: Mapped[str] = mapped_column(String(32))
+    value: Mapped[float] = mapped_column(Float)
+    unit: Mapped[str] = mapped_column(String(16))
+    source: Mapped[str] = mapped_column(String(16))
+    device_name: Mapped[str | None] = mapped_column(String(120))
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), index=True
+    )
+
+    profile: Mapped["Profile"] = relationship(back_populates="vital_signs")
 
 
 class Medication(Base):

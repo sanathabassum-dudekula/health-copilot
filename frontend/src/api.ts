@@ -227,6 +227,17 @@ export type ProfileFields = {
   voice_reminders_enabled?: boolean;
 };
 
+export type VitalMetric = "heart_rate" | "oxygen_saturation" | "body_temperature";
+export type VitalSign = {
+  id: number;
+  metric: VitalMetric;
+  value: number;
+  unit: string;
+  source: "bluetooth" | "manual";
+  device_name: string | null;
+  captured_at: string;
+};
+
 export type AccountUser = {
   id: number;
   email: string;
@@ -377,6 +388,19 @@ export const api = {
   confirmedPrescriptions: (profileOid?: string) =>
     req<ConfirmedPrescriptionSchedule[]>(`/reminders/confirmed-prescriptions${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`),
   profile: () => req<Profile>("/profile"),
+  vitals: (profileOid?: string) =>
+    req<VitalSign[]>(`/vitals${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`),
+  addVital: (
+    body: Pick<VitalSign, "metric" | "value" | "source"> & {
+      device_name?: string | null;
+      captured_at?: string;
+    },
+    profileOid?: string,
+  ) =>
+    post<VitalSign>(
+      `/vitals${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`,
+      body,
+    ),
   setLanguage: (preferred_language: string) => req("/profile", { method: "PUT", body: JSON.stringify({ preferred_language }) }),
   updateProfile: (body: ProfileFields) => req<Profile>("/profile", { method: "PUT", body: JSON.stringify(body) }),
   upload: (f: File, profileOid?: string) => { const fd = new FormData(); fd.append("file", f); return req<Doc>(`/documents${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`, { method: "POST", body: fd }); },

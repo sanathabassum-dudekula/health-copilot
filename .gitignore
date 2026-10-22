@@ -65,3 +65,16 @@ backend/eval/gold/handwritten_*
 *backup*
 **/*backup*
 *.db.backup*
+
+# Reference PDF shared separately
+trinexa-reference.pdf
+
+# Local secrets and databases
+**/.env
+**/.env.*
+!**/.env.example
+**/dev.db
+/backups/
+
+# Reference PDF shared separately
+trinexa-reference.pdf

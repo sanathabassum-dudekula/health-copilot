@@ -19,7 +19,8 @@ const NAV: { to: string; icon: IconName; key: string }[] = [
   { to: "/upload", icon: "upload", key: "upload" },
   { to: "/timeline", icon: "activity", key: "timeline" },
   { to: "/reminders", icon: "bell", key: "reminders" },
-  { to: "/family", icon: "users", key: "family" },
+  { to: "/profiles", icon: "users", key: "profiles" },
+  { to: "/devices", icon: "heart", key: "devices" },
   { to: "/profile", icon: "user", key: "profile" },
   { to: "/abha", icon: "shield", key: "abha" },
 ];
@@ -83,6 +84,7 @@ function Layout({ children }: { children: ReactNode }) {
   const [down, setDown] = useState(false);
   const [account, setAccount] = useState<AccountUser | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
+  const authPage = path === "/login" || path === "/register";
 
   const applyProfile = useCallback((profileData: Profile) => {
     setProfile(profileData);
@@ -166,10 +168,10 @@ function Layout({ children }: { children: ReactNode }) {
   const abha = profile?.abha;
   const assistantPage = path === "/assistant";
   return (
-    <div lang={i18n.language} className={`app-shell min-h-screen lang-${i18n.language.split("-")[0]} ${path === "/" ? "" : assistantPage ? "md:grid md:grid-cols-1" : "md:grid md:grid-cols-[17rem_1fr]"}`}>
+    <div lang={i18n.language} className={`app-shell min-h-screen lang-${i18n.language.split("-")[0]} ${path === "/" || authPage ? "" : assistantPage ? "md:grid md:grid-cols-1" : "md:grid md:grid-cols-[17rem_1fr]"}`}>
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-surface focus:p-3">{t("skip")}</a>
 
-      {path !== "/" && !assistantPage && (<aside className="no-print sticky top-0 hidden h-screen flex-col gap-6 overflow-y-auto border-r border-line bg-surface/70 p-5 backdrop-blur md:flex">
+      {path !== "/" && !authPage && !assistantPage && (<aside className="no-print sticky top-0 hidden h-screen flex-col gap-6 overflow-y-auto border-r border-line bg-surface/70 p-5 backdrop-blur md:flex">
         <Logo />
         <nav className="flex flex-col gap-1">
           {NAV.map((n) => <Link key={n.to} href={n.to} className={link(active(n))}><Icon name={n.icon} />{t(`nav.${n.key}`)}</Link>)}
@@ -211,7 +213,7 @@ function Layout({ children }: { children: ReactNode }) {
       </aside>)}
 
       <div className={`min-w-0 ${path === "/" ? "pb-8" : "pb-28 md:pb-12"}`}>
-        <header className="no-print sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-bg/85 px-4 py-3 backdrop-blur md:hidden">
+        <header className={`no-print sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-bg/85 px-4 py-3 backdrop-blur ${authPage ? "" : "md:hidden"}`}>
           {assistantPage ? (
             <Link href="/health" aria-label={t("home.homeLink")} className="flex items-center gap-2 font-bold text-ink">
               <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-soft text-brand-strong"><Icon name="heart" className="h-5 w-5" /></span>
@@ -227,13 +229,13 @@ function Layout({ children }: { children: ReactNode }) {
             <Controls />
           </div>
         </header>
-        <main id="main" className={`mx-auto px-4 py-6 ${assistantPage ? "max-w-7xl md:px-8 md:py-6" : "max-w-5xl md:px-10 md:py-10"}`}>
+        <main id="main" className={`mx-auto px-4 py-6 ${authPage ? "max-w-6xl sm:px-8 md:py-8" : assistantPage ? "max-w-7xl md:px-8 md:py-6" : "max-w-5xl md:px-10 md:py-10"}`}>
           {authChecking && path !== "/" && path !== "/login" && path !== "/register" ? <p className="py-12 text-center text-sm text-muted">{t("auth.checking")}</p> : down ? <EmptyState icon="alert" title={t("serverDown")} sub={t("serverDownSub")} /> : <ProfileCtx.Provider value={{ profile, reload }}>{children}</ProfileCtx.Provider>}
         </main>
-        {!authChecking && !down && <PageAssistant pathname={path} profile={profile} />}
+        {!authChecking && !down && !authPage && <PageAssistant pathname={path} profile={profile} />}
       </div>
 
-      {path !== "/" && !assistantPage && (<nav aria-label={t("auth.primaryNav")} className="no-print fixed inset-x-3 bottom-3 z-40 grid grid-cols-7 gap-0.5 rounded-2xl border border-line bg-surface/95 p-1 shadow-card backdrop-blur md:hidden">
+      {path !== "/" && !authPage && !assistantPage && (<nav aria-label={t("auth.primaryNav")} className="no-print fixed inset-x-3 bottom-3 z-40 grid grid-cols-8 gap-0.5 rounded-2xl border border-line bg-surface/95 p-1 shadow-card backdrop-blur md:hidden">
         {NAV.map((n) => (
           <Link key={n.to} href={n.to}
             className={`flex min-w-0 flex-col items-center gap-0.5 rounded-lg py-2 text-[9px] font-semibold ${active(n) ? "bg-brand-soft text-brand-strong" : "text-muted"}`}>

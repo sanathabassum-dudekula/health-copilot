@@ -436,7 +436,7 @@ export default function AssistantPage() {
             </label>
           )}
           <div className="flex gap-2">
-            <Link href="/family" className="btn btn-ghost min-w-0 flex-1 justify-center !px-2 text-xs">
+            <Link href="/profiles" className="btn btn-ghost min-w-0 flex-1 justify-center !px-2 text-xs">
               <Icon name="users" className="h-4 w-4" />{t("family.title")}
             </Link>
             <Link href={`/reminders${activeProfileOid ? `?profile_oid=${encodeURIComponent(activeProfileOid)}` : ""}`} className="btn btn-ghost min-w-0 flex-1 justify-center !px-2 text-xs">

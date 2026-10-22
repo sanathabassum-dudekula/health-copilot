@@ -1116,3 +1116,39 @@ def test_unfamiliar_medical_document_is_accepted(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["status"] == "processing"
+
+
+def test_vitals_are_saved_per_profile_and_validated():
+    with TestClient(app, headers=_visit()) as owner:
+        own = owner.post(
+            "/vitals",
+            json={"metric": "heart_rate", "value": 72, "source": "manual"},
+        )
+        linked_profile = owner.post("/family", json={"name": "Child"}).json()
+        linked = owner.post(
+            f"/vitals?profile_oid={linked_profile['oid']}",
+            json={
+                "metric": "oxygen_saturation",
+                "value": 98,
+                "source": "bluetooth",
+                "device_name": "Test sensor",
+            },
+        )
+        own_list = owner.get("/vitals").json()
+        linked_list = owner.get(f"/vitals?profile_oid={linked_profile['oid']}").json()
+        invalid = owner.post(
+            "/vitals",
+            json={"metric": "heart_rate", "value": 300, "source": "manual"},
+        )
+
+    assert own.status_code == 201
+    assert own.json()["unit"] == "bpm"
+    assert own_list[0]["metric"] == "heart_rate"
+    assert linked.status_code == 201
+    assert linked.json()["unit"] == "%"
+    assert linked_list[0]["device_name"] == "Test sensor"
+    assert invalid.status_code == 422
+
+    with TestClient(app, headers=_visit()) as other:
+        denied = other.get(f"/vitals?profile_oid={linked_profile['oid']}")
+    assert denied.status_code == 404

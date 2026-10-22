@@ -4,13 +4,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { useTranslation } from "react-i18next";
 import { LANGS, Lang } from "@/i18n";
-import { api, Profile, familyApi, FamilyMember } from "@/api";
+import { api, ApiRequestError, Profile, familyApi, FamilyMember } from "@/api";
 import Icon from "@/components/Icon";
 
 export default function ChooseProfilePage() {
   const { t, i18n } = useTranslation();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [memberName, setMemberName] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
@@ -23,22 +24,38 @@ export default function ChooseProfilePage() {
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [savingMember, setSavingMember] = useState(false);
 
-  async function loadFamilyMembers() {
+  async function loadFamilyMembers(isActive: () => boolean = () => true) {
     try {
       const result = await familyApi.list();
-      setFamilyMembers(result.members);
+      if (isActive()) setFamilyMembers(result.members);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : t("home.loadFamilyError"));
+      if (isActive()) setNotice(error instanceof Error ? error.message : t("home.loadFamilyError"));
     }
   }
 
   useEffect(() => {
-    api.profile()
-      .then(setProfile)
-      .catch(() => setNotice(t("home.loadError")))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    api.authMe()
+      .then(() => {
+        if (cancelled) return;
+        setAuthenticated(true);
+        api.profile()
+          .then((value) => { if (!cancelled) setProfile(value); })
+          .catch((error) => {
+            if (!cancelled) setNotice(error instanceof Error ? error.message : t("home.loadError"));
+          })
+          .finally(() => { if (!cancelled) setLoading(false); });
+        void loadFamilyMembers(() => !cancelled);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        if (!(error instanceof ApiRequestError && error.status === 401)) {
+          setNotice(error instanceof Error ? error.message : t("home.loadError"));
+        }
+        setLoading(false);
+      });
 
-    void loadFamilyMembers();
+    return () => { cancelled = true; };
   }, []);
 
   async function handleAddMember(event: FormEvent<HTMLFormElement>) {
@@ -213,6 +230,11 @@ export default function ChooseProfilePage() {
               <div className="card p-6 text-sm text-muted">
                 {t("home.loading")}
               </div>
+            ) : !authenticated ? (
+              <div className="card flex flex-wrap items-center justify-between gap-4 p-5">
+                <p className="max-w-md text-sm leading-6 text-muted">{t("home.signInToSeeProfiles")}</p>
+                <Link href="/login" className="btn btn-primary">{t("auth.logIn")}</Link>
+              </div>
             ) : profile ? (
               <div className="grid gap-4 sm:grid-cols-2">
                 <Link
@@ -272,7 +294,7 @@ export default function ChooseProfilePage() {
         </div>
       </div>
 
-      <section className="card curamind-family-section space-y-4 p-5 sm:p-6">
+      <section hidden={!authenticated} className="card curamind-family-section space-y-4 p-5 sm:p-6">
         <div className="flex items-start gap-3">
           <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-brand-soft text-brand">
             <Icon name="user" className="h-6 w-6" />
@@ -300,7 +322,7 @@ export default function ChooseProfilePage() {
                 key={member.oid}
                 className="flex items-center justify-between gap-4 rounded-xl border border-line bg-white p-4"
               >
-                <div className="flex min-w-0 items-center gap-3">
+                <Link href={`/profiles?oid=${encodeURIComponent(member.oid)}`} className="flex min-w-0 flex-1 items-center gap-3">
                   <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-soft font-semibold text-brand">
                     {member.name.trim().charAt(0).toUpperCase()}
                   </div>
@@ -311,7 +333,8 @@ export default function ChooseProfilePage() {
                       {member.sex ? ` · ${member.sex}` : ""}
                     </p>
                   </div>
-                </div>
+                  <span className="sr-only">{t("home.continueRecords")}</span>
+                </Link>
                 <button
                   type="button"
                   className="btn"

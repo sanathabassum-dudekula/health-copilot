@@ -36,7 +36,7 @@ export default function RegisterPage() {
         email: email.trim(),
         password,
       });
-      router.replace("/profile?setup=1");
+      router.replace("/");
     } catch (e) {
       if (e instanceof Error && e.message === "Enter a valid email address.") {
         setError(t("auth.invalidEmail"));

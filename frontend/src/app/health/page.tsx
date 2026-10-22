@@ -7,6 +7,7 @@ import { useProfile } from "@/Shell";
 import Icon, { IconName } from "@/components/Icon";
 import RangeGauge from "@/components/RangeGauge";
 import HealthInsightsPanel from "@/components/HealthInsightsPanel";
+import VitalsSummary from "@/components/VitalsSummary";
 import { Badge, DOC_ICON, EmptyState, FLAG, fmtDate, SectionTitle, Skeleton, Spinner } from "@/components/ui";
 
 const Stat = ({ icon, value, label, tone, d }: { icon: IconName; value: number; label: string; tone: string; d: number }) => (
@@ -73,6 +74,8 @@ export default function Home() {
         <Stat d={3} icon="pill" tone="med" value={p.current_medicines.length} label={t("stat.meds")} />
         <Stat d={4} icon="steth" tone="dx" value={p.conditions.length} label={t("stat.conditions")} />
       </div>
+
+      <VitalsSummary />
 
       <section>
         <SectionTitle>{t("needsAttention")}</SectionTitle>

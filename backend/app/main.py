@@ -7,7 +7,7 @@ from sqlalchemy import update
 
 from .db import SessionLocal, init_db
 from .models import Document
-from .routers import abha, documents, profile, family, auth, assistant, insights, reminders
+from .routers import abha, documents, profile, family, auth, assistant, insights, reminders, vitals
 
 
 logging.basicConfig(level=logging.INFO)  # show ingestion timings next to uvicorn's log
@@ -34,5 +34,6 @@ for r in (
     assistant.router,
     insights.router,
     reminders.router,
+    vitals.router,
 ):
     app.include_router(r)
