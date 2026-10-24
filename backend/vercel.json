@@ -1,0 +1,13 @@
+{
+  "crons": [
+    {
+      "path": "/reminders/dispatch",
+      "schedule": "* * * * *"
+    }
+  ],
+  "functions": {
+    "index.py": {
+      "maxDuration": 60
+    }
+  }
+}

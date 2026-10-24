@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     LLM_API_KEY: str = ""
     LLM_KWARGS: dict = {}
     STORAGE_DIR: str = "storage"
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_SUBJECT: str = ""
+    CRON_SECRET: str = ""
 
     # S3-compatible medical document storage
     AWS_ENDPOINT_URL_S3: str = ""

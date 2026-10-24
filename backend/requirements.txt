@@ -12,3 +12,4 @@ pymupdf
 pillow
 
 boto3
+pywebpush

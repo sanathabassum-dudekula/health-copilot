@@ -42,6 +42,8 @@ export default function RemindersPage() {
   const [sourceDocumentId, setSourceDocumentId] = useState<number | undefined>();
   const [followUpDocumentId, setFollowUpDocumentId] = useState<number | null>(null);
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
   const [routineSuggestions, setRoutineSuggestions] = useState<RoutineSuggestion[]>([]);
   const [confirmedPrescriptions, setConfirmedPrescriptions] = useState<ConfirmedPrescriptionSchedule[]>([]);
   const [routineNote, setRoutineNote] = useState("");
@@ -53,7 +55,11 @@ export default function RemindersPage() {
   const notified = useRef(new Set<number>());
 
   useEffect(() => {
-    if ("Notification" in window) setPermission(Notification.permission);
+    const pushSupported = window.isSecureContext
+      && "Notification" in window
+      && "serviceWorker" in navigator
+      && "PushManager" in window;
+    setPermission(pushSupported ? Notification.permission : "unsupported");
     familyApi.list()
       .then(({ members }) => setFamilyMembers(members))
       .catch(() => setError(t("family.loadError")));
@@ -76,6 +82,37 @@ export default function RemindersPage() {
       }
     }
   }, [t]);
+
+  useEffect(() => {
+    if (permission !== "granted") {
+      setPushSubscribed(false);
+      return;
+    }
+    let cancelled = false;
+    navigator.serviceWorker.getRegistration()
+      .then((registration) => registration?.pushManager.getSubscription())
+      .then(async (subscription) => {
+        if (!subscription || cancelled) return;
+        const config = await api.pushConfig(profileOid);
+        if (!config.enabled) {
+          if (!cancelled) setError(t("reminders.pushNotConfigured"));
+          return;
+        }
+        const payload = subscription.toJSON();
+        if (!payload.endpoint || !payload.keys?.p256dh || !payload.keys.auth) {
+          throw new Error("The browser returned an incomplete push subscription.");
+        }
+        await api.savePushSubscription({
+          endpoint: payload.endpoint,
+          keys: { p256dh: payload.keys.p256dh, auth: payload.keys.auth },
+        }, profileOid);
+        if (!cancelled) setPushSubscribed(true);
+      })
+      .catch(() => {
+        if (!cancelled) setError(t("reminders.pushSetupError"));
+      });
+    return () => { cancelled = true; };
+  }, [permission, profileOid, t]);
 
   useEffect(() => {
     if (!followUpDocumentId) return;
@@ -129,10 +166,12 @@ export default function RemindersPage() {
       for (const reminder of reminders) {
         const due = new Date(reminder.due_at).getTime();
         if (reminder.status !== "pending" || due > now || due < now - 60_000 || notified.current.has(reminder.id)) continue;
-        new Notification(reminder.title, {
-          body: reminder.details || t(`reminders.${reminder.category}`),
-          tag: `health-reminder-${reminder.id}`,
-        });
+        if (!pushSubscribed) {
+          new Notification(reminder.title, {
+            body: reminder.details || t(`reminders.${reminder.category}`),
+            tag: `health-reminder-${reminder.id}`,
+          });
+        }
         if (profile?.voice_reminders_enabled && "speechSynthesis" in window) {
           const selectedVoiceLanguage = profile.voice_language in LANGS
             ? profile.voice_language as Lang
@@ -156,7 +195,7 @@ export default function RemindersPage() {
     notifyDue();
     const interval = window.setInterval(notifyDue, 30_000);
     return () => window.clearInterval(interval);
-  }, [permission, profile, reminders, t]);
+  }, [permission, profile, pushSubscribed, reminders, t]);
 
   async function refresh() {
     setReminders(await api.reminders(profileOid, true));
@@ -214,14 +253,66 @@ export default function RemindersPage() {
   }
 
   async function enableNotifications() {
-    if (!("Notification" in window)) {
+    if (!window.isSecureContext || !("Notification" in window)
+      || !("serviceWorker" in navigator) || !("PushManager" in window)) {
       setPermission("unsupported");
       return;
     }
+    setPushBusy(true);
     try {
-      setPermission(await Notification.requestPermission());
+      const nextPermission = Notification.permission === "granted"
+        ? "granted"
+        : await Notification.requestPermission();
+      setPermission(nextPermission);
+      if (nextPermission !== "granted") return;
+
+      const config = await api.pushConfig(profileOid);
+      if (!config.enabled || !config.public_key) {
+        setError(t("reminders.pushNotConfigured"));
+        return;
+      }
+      const registration = await navigator.serviceWorker.register("/service-worker.js");
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        const key = config.public_key.replace(/-/g, "+").replace(/_/g, "/");
+        const binary = window.atob(key + "=".repeat((4 - key.length % 4) % 4));
+        const applicationServerKey = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey,
+        });
+      }
+      const payload = subscription.toJSON();
+      if (!payload.endpoint || !payload.keys?.p256dh || !payload.keys.auth) {
+        throw new Error("The browser returned an incomplete push subscription.");
+      }
+      await api.savePushSubscription({
+        endpoint: payload.endpoint,
+        keys: { p256dh: payload.keys.p256dh, auth: payload.keys.auth },
+      }, profileOid);
+      setPushSubscribed(true);
+      setError("");
     } catch {
-      setError(t("reminders.permissionError"));
+      setError(t("reminders.pushSetupError"));
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
+  async function disableNotifications() {
+    setPushBusy(true);
+    try {
+      const registration = await navigator.serviceWorker.getRegistration();
+      const subscription = await registration?.pushManager.getSubscription();
+      if (subscription) {
+        await api.deletePushSubscription(subscription.endpoint, profileOid);
+      }
+      setPushSubscribed(false);
+      setError("");
+    } catch {
+      setError(t("reminders.pushDisableError"));
+    } finally {
+      setPushBusy(false);
     }
   }
 
@@ -312,11 +403,14 @@ export default function RemindersPage() {
               </select>
             </label>
           )}
-          {permission === "granted"
-            ? <span className="btn btn-soft !min-h-9"><Icon name="bell" className="h-4 w-4" />{t("reminders.notificationsEnabled")}</span>
-            : <button type="button" onClick={() => void enableNotifications()} className="btn btn-ghost !min-h-9" disabled={permission === "unsupported" || permission === "denied"}>
+          {pushSubscribed
+            ? <button type="button" onClick={() => void disableNotifications()} className="btn btn-soft !min-h-9" disabled={pushBusy}>
+              <Icon name="bell" className="h-4 w-4" />{pushBusy ? t("reminders.disablingNotifications") : t("reminders.disableNotifications")}
+            </button>
+            : <button type="button" onClick={() => void enableNotifications()} className="btn btn-ghost !min-h-9" disabled={pushBusy || permission === "unsupported" || permission === "denied"}>
               <Icon name="bell" className="h-4 w-4" />
-              {permission === "unsupported" ? t("reminders.notificationsUnsupported")
+              {pushBusy ? t("reminders.saving")
+                : permission === "unsupported" ? t("reminders.notificationsUnsupported")
                 : permission === "denied" ? t("reminders.notificationsDenied")
                   : t("reminders.enableNotifications")}
             </button>}

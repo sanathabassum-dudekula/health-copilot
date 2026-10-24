@@ -293,6 +293,14 @@ export type HealthReminder = {
   created_at: string;
 };
 
+export type PushSubscriptionPayload = {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+};
+
 export type HealthInsights = {
   profile: { oid: string | null; name: string };
   flagged_results: {
@@ -367,6 +375,20 @@ export const api = {
     if (includeInactive) query.set("include_inactive", "true");
     return req<HealthReminder[]>(`/reminders${query.size ? `?${query}` : ""}`);
   },
+  pushConfig: (profileOid?: string) =>
+    req<{ enabled: boolean; public_key: string | null }>(
+      `/reminders/push/config${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`,
+    ),
+  savePushSubscription: (body: PushSubscriptionPayload, profileOid?: string) =>
+    post<{ subscribed: boolean }>(
+      `/reminders/push/subscriptions${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`,
+      body,
+    ),
+  deletePushSubscription: (endpoint: string, profileOid?: string) =>
+    req<void>(
+      `/reminders/push/subscriptions${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`,
+      { method: "DELETE", body: JSON.stringify({ endpoint }) },
+    ),
   createReminder: (body: {
     title: string;
     details?: string;
@@ -539,4 +561,3 @@ export const familyApi = {
   remove: (oid: string) =>
     req<void>(`/family/${encodeURIComponent(oid)}`, { method: "DELETE" }),
 };
-

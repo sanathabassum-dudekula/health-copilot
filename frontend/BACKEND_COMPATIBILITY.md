@@ -24,6 +24,8 @@ The guest experience remains available for non-family workflows. Do not use this
 
 The backend's document extraction, summary generation, and AI assistant require `LLM_API_KEY` in the backend deployment environment. Without that provider credential, API and account workflows can still respond, but model-backed features are unavailable.
 
+Background reminders use `GET /reminders/push/config`, `POST/DELETE /reminders/push/subscriptions`, a service worker, and the backend Vercel Cron endpoint `GET /reminders/dispatch`. Configure `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, and `CRON_SECRET` in the backend project's Production environment. Vercel Hobby cron runs only daily; one-minute reminder dispatch requires Pro or Enterprise. Push notifications show generic text on lock screens rather than reminder titles or health details.
+
 ## Run locally
 
 1. Install Node.js 20.9 or newer.

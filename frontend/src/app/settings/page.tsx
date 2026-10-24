@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
   api,
   ApiRequestError,
@@ -15,6 +16,7 @@ export default function SettingsPage() {
   const [members, setMembers] = useState<FamilyMember[]>([]);
   const [active, setActive] = useState<ActiveFamilyProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [requiresSignIn, setRequiresSignIn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -64,11 +66,15 @@ export default function SettingsPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Unable to load family settings. Please sign in."
-          );
+          if (err instanceof ApiRequestError && err.status === 401) {
+            setRequiresSignIn(true);
+          } else {
+            setError(
+              err instanceof Error
+                ? err.message
+                : "Unable to load family settings."
+            );
+          }
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -152,8 +158,10 @@ export default function SettingsPage() {
         blood_group: bloodGroup || null,
       };
 
-      await familyApi.add({ ...fields, pin: newPin });
-      await refresh();
+      const created = await familyApi.add({ ...fields, pin: newPin });
+      setMembers((current) =>
+        [...current, created].sort((left, right) => left.name.localeCompare(right.name))
+      );
 
       setName("");
       setNewPin("");
@@ -302,6 +310,21 @@ export default function SettingsPage() {
 
   if (loading) {
     return <div className="card p-6 text-sm text-muted">Loading settings...</div>;
+  }
+
+  if (requiresSignIn) {
+    return (
+      <main className="card mx-auto mt-10 max-w-xl space-y-4 p-6">
+        <h1 className="text-xl font-semibold">Sign in to manage family profiles</h1>
+        <p className="text-sm leading-6 text-muted">
+          Family profiles are securely linked to a registered account. Sign in or create an account before adding a family member.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <Link href="/login" className="btn btn-primary">Sign in</Link>
+          <Link href="/register" className="btn btn-ghost">Create account</Link>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -679,4 +702,3 @@ export default function SettingsPage() {
     </main>
   );
 }
-

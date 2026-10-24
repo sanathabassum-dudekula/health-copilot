@@ -51,6 +51,8 @@ def test_frontend_api_groups_are_registered():
     assert "/auth/me" in paths
     assert "/assistant/chat" in paths
     assert "/reminders" in paths
+    assert "/reminders/push/config" in paths
+    assert "/reminders/dispatch" in paths
     assert "/insights" in paths
     assert "/vitals" in paths
 

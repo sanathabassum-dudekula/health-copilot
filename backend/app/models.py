@@ -117,6 +117,9 @@ class Profile(Base):
     health_reminders: Mapped[list["HealthReminder"]] = relationship(
         back_populates="profile", cascade=CASCADE
     )
+    push_subscriptions: Mapped[list["PushSubscription"]] = relationship(
+        back_populates="profile", cascade=CASCADE
+    )
     vital_signs: Mapped[list["VitalSign"]] = relationship(
         back_populates="profile", cascade=CASCADE
     )
@@ -296,6 +299,59 @@ class HealthReminder(Base):
     )
 
     profile: Mapped["Profile"] = relationship(back_populates="health_reminders")
+    push_deliveries: Mapped[list["PushDelivery"]] = relationship(
+        back_populates="reminder", cascade=CASCADE
+    )
+
+
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+    __table_args__ = (
+        UniqueConstraint(
+            "profile_id", "endpoint", name="uq_push_subscription_profile_endpoint"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), index=True
+    )
+    endpoint: Mapped[str] = mapped_column(Text)
+    p256dh: Mapped[str] = mapped_column(String(200))
+    auth: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now()
+    )
+
+    profile: Mapped["Profile"] = relationship(back_populates="push_subscriptions")
+    deliveries: Mapped[list["PushDelivery"]] = relationship(
+        back_populates="subscription", cascade=CASCADE
+    )
+
+
+class PushDelivery(Base):
+    __tablename__ = "push_deliveries"
+    __table_args__ = (
+        UniqueConstraint(
+            "reminder_id",
+            "subscription_id",
+            "due_at",
+            name="uq_push_delivery_occurrence",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    reminder_id: Mapped[int] = mapped_column(
+        ForeignKey("health_reminders.id", ondelete="CASCADE"), index=True
+    )
+    subscription_id: Mapped[int] = mapped_column(
+        ForeignKey("push_subscriptions.id", ondelete="CASCADE"), index=True
+    )
+    due_at: Mapped[datetime] = mapped_column(DateTime)
+    sent_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    reminder: Mapped["HealthReminder"] = relationship(back_populates="push_deliveries")
+    subscription: Mapped["PushSubscription"] = relationship(back_populates="deliveries")
 
 
 class AssistantConversation(Base):

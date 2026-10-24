@@ -143,6 +143,8 @@ def test_init_db_adds_profile_fields_to_existing_schema(monkeypatch, tmp_path):
         column["name"]
         for column in inspect(legacy_engine).get_columns("family_invitations")
     }
+    assert inspect(legacy_engine).has_table("push_subscriptions")
+    assert inspect(legacy_engine).has_table("push_deliveries")
     legacy_engine.dispose()
 
 

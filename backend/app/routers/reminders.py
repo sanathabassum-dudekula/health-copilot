@@ -1,9 +1,14 @@
-﻿from calendar import monthrange
+import base64
+import binascii
+from calendar import monthrange
 from datetime import datetime, timedelta, timezone
+import hmac
+import json
 import logging
 from typing import Literal
+from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
@@ -13,7 +18,14 @@ from ..auth import active_profile
 from ..config import settings
 from ..db import get_db
 from ..ingestion.llm import invoke_with_retry, structured
-from ..models import HealthReminder, Medication, Profile
+from ..models import (
+    HealthReminder,
+    Medication,
+    Profile,
+    PushDelivery,
+    PushSubscription,
+)
+from pywebpush import WebPushException, webpush
 
 router = APIRouter(prefix="/reminders", tags=["reminders"])
 log = logging.getLogger(__name__)
@@ -24,6 +36,20 @@ Category = Literal[
 ]
 Language = Literal["en", "hi", "te", "ta"]
 LANGUAGE_NAMES = {"en": "English", "hi": "Hindi", "te": "Telugu", "ta": "Tamil"}
+MAX_PUSH_ATTEMPTS_PER_RUN = 10
+ALLOWED_PUSH_HOSTS = {
+    "fcm.googleapis.com",
+    "updates.push.services.mozilla.com",
+    "web.push.apple.com",
+}
+
+
+def _push_credentials_configured() -> bool:
+    return all((
+        settings.VAPID_PUBLIC_KEY.strip(),
+        settings.VAPID_PRIVATE_KEY.strip(),
+        settings.VAPID_SUBJECT.strip(),
+    ))
 
 
 class RoutineSuggestion(BaseModel):
@@ -43,6 +69,20 @@ class RoutinePlan(BaseModel):
 class RoutineRequest(BaseModel):
     written_language: Language = "en"
     voice_language: Language = "en"
+
+
+class PushSubscriptionKeys(BaseModel):
+    p256dh: str = Field(min_length=1, max_length=200)
+    auth: str = Field(min_length=1, max_length=100)
+
+
+class PushSubscriptionCreate(BaseModel):
+    endpoint: str = Field(min_length=1, max_length=2048)
+    keys: PushSubscriptionKeys
+
+
+class PushSubscriptionDelete(BaseModel):
+    endpoint: str = Field(min_length=1, max_length=2048)
 
 
 class ReminderCreate(BaseModel):
@@ -127,6 +167,84 @@ def _next_occurrence(value: datetime, recurrence: str) -> datetime:
     return _next_month(value)
 
 
+def _push_endpoint_is_allowed(endpoint: str) -> bool:
+    try:
+        parsed = urlsplit(endpoint)
+        port = parsed.port
+    except ValueError:
+        return False
+    host = (parsed.hostname or "").lower()
+    return (
+        parsed.scheme == "https"
+        and parsed.username is None
+        and parsed.password is None
+        and port in (None, 443)
+        and (
+            host in ALLOWED_PUSH_HOSTS
+            or host.endswith(".notify.windows.com")
+        )
+    )
+
+
+def _decode_base64url(value: str) -> bytes:
+    try:
+        return base64.b64decode(
+            value + "=" * (-len(value) % 4),
+            altchars=b"-_",
+            validate=True,
+        )
+    except (ValueError, binascii.Error) as error:
+        raise ValueError("Invalid base64url value") from error
+
+
+def _push_keys_are_valid(keys: PushSubscriptionKeys) -> bool:
+    try:
+        public_key = _decode_base64url(keys.p256dh)
+        auth_secret = _decode_base64url(keys.auth)
+    except ValueError:
+        return False
+    return len(public_key) == 65 and public_key[0] == 4 and len(auth_secret) == 16
+
+
+def _vapid_private_key_pem() -> str:
+    value = settings.VAPID_PRIVATE_KEY.strip()
+    if value.startswith("-----BEGIN"):
+        return value
+
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    try:
+        decoded = _decode_base64url(value)
+        try:
+            private_key = serialization.load_der_private_key(decoded, password=None)
+        except ValueError:
+            if len(decoded) != 32:
+                raise ValueError("VAPID private key must be PEM or a base64url P-256 key")
+            private_key = ec.derive_private_key(
+                int.from_bytes(decoded, "big"), ec.SECP256R1()
+            )
+    except (ValueError, TypeError) as error:
+        raise ValueError("VAPID private key is not valid PEM or base64url") from error
+
+    if not isinstance(private_key, ec.EllipticCurvePrivateKey) or not isinstance(
+        private_key.curve, ec.SECP256R1
+    ):
+        raise ValueError("VAPID private key must use the P-256 curve")
+    public_key = _decode_base64url(settings.VAPID_PUBLIC_KEY.strip())
+    expected_public_key = private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.X962,
+        format=serialization.PublicFormat.UncompressedPoint,
+    )
+    if not hmac.compare_digest(public_key, expected_public_key):
+        raise ValueError("VAPID public and private keys do not match")
+    return private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode("ascii")
+
+
 def _confirmed_prescriptions(target: Profile, db: Session) -> list[dict]:
     confirmed_ids = confirmed_document_ids(target.id)
     today = datetime.now(timezone.utc).date()
@@ -157,6 +275,182 @@ def _requested_active_profile(
     if not is_requested_profile(profile, profile_oid):
         raise HTTPException(status_code=404, detail="Profile not found")
     return profile
+
+
+@router.get("/push/config", dependencies=[Depends(_requested_active_profile)])
+def get_push_config():
+    enabled = _push_credentials_configured()
+    if enabled:
+        try:
+            _vapid_private_key_pem()
+        except ValueError as error:
+            log.error("Reminder push credentials are invalid")
+            raise HTTPException(
+                status_code=503,
+                detail="Push notifications are misconfigured",
+            ) from error
+    return {
+        "enabled": enabled,
+        "public_key": settings.VAPID_PUBLIC_KEY.strip() if enabled else None,
+    }
+
+
+@router.post("/push/subscriptions", status_code=201)
+def save_push_subscription(
+    body: PushSubscriptionCreate,
+    profile: Profile = Depends(_requested_active_profile),
+    db: Session = Depends(get_db),
+):
+    if not _push_credentials_configured():
+        raise HTTPException(status_code=503, detail="Push notifications are not configured")
+    if not _push_endpoint_is_allowed(body.endpoint):
+        raise HTTPException(status_code=422, detail="Unsupported push service endpoint")
+    if not _push_keys_are_valid(body.keys):
+        raise HTTPException(status_code=422, detail="Invalid push subscription keys")
+
+    subscription = db.scalar(
+        select(PushSubscription).where(
+            PushSubscription.profile_id == profile.id,
+            PushSubscription.endpoint == body.endpoint,
+        )
+    )
+    if subscription is None:
+        subscription = PushSubscription(
+            profile_id=profile.id,
+            endpoint=body.endpoint,
+            p256dh=body.keys.p256dh,
+            auth=body.keys.auth,
+        )
+        db.add(subscription)
+    else:
+        subscription.p256dh = body.keys.p256dh
+        subscription.auth = body.keys.auth
+    db.commit()
+    return {"subscribed": True}
+
+
+@router.delete("/push/subscriptions", status_code=204)
+def delete_push_subscription(
+    body: PushSubscriptionDelete,
+    profile: Profile = Depends(_requested_active_profile),
+    db: Session = Depends(get_db),
+):
+    subscription = db.scalar(
+        select(PushSubscription).where(
+            PushSubscription.profile_id == profile.id,
+            PushSubscription.endpoint == body.endpoint,
+        )
+    )
+    if subscription is not None:
+        db.delete(subscription)
+        db.commit()
+
+
+@router.get("/dispatch")
+def dispatch_due_reminders(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    if not settings.CRON_SECRET:
+        raise HTTPException(status_code=503, detail="Reminder scheduler is not configured")
+    if not hmac.compare_digest(
+        request.headers.get("authorization", ""),
+        f"Bearer {settings.CRON_SECRET}",
+    ):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not _push_credentials_configured():
+        raise HTTPException(status_code=503, detail="Push notifications are not configured")
+    try:
+        private_key = _vapid_private_key_pem()
+    except ValueError as error:
+        log.error("Reminder push credentials are invalid")
+        raise HTTPException(status_code=503, detail="Push notifications are misconfigured") from error
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    due_reminders = db.scalars(
+        select(HealthReminder)
+        .where(
+            HealthReminder.status == "pending",
+            HealthReminder.due_at <= now,
+        )
+        .order_by(HealthReminder.due_at, HealthReminder.id)
+        .limit(100)
+        .with_for_update(skip_locked=True)
+    ).all()
+
+    attempted = delivered = expired = failed = 0
+    stop = False
+    for reminder in due_reminders:
+        subscriptions = db.scalars(
+            select(PushSubscription).where(
+                PushSubscription.profile_id == reminder.profile_id
+            )
+        ).all()
+        for subscription in subscriptions:
+            already_sent = db.scalar(
+                select(PushDelivery.id).where(
+                    PushDelivery.reminder_id == reminder.id,
+                    PushDelivery.subscription_id == subscription.id,
+                    PushDelivery.due_at == reminder.due_at,
+                )
+            )
+            if already_sent is not None:
+                continue
+            if attempted >= MAX_PUSH_ATTEMPTS_PER_RUN:
+                stop = True
+                break
+            attempted += 1
+            try:
+                webpush(
+                    subscription_info={
+                        "endpoint": subscription.endpoint,
+                        "keys": {
+                            "p256dh": subscription.p256dh,
+                            "auth": subscription.auth,
+                        },
+                    },
+                    data=json.dumps({
+                        "title": "CuraMind reminder",
+                        "body": "A scheduled reminder is due. Open CuraMind to view it.",
+                        "url": "/reminders",
+                        "reminder_id": reminder.id,
+                    }),
+                    vapid_private_key=private_key,
+                    vapid_claims={"sub": settings.VAPID_SUBJECT.strip()},
+                    ttl=3600,
+                    timeout=5,
+                )
+            except WebPushException as error:
+                status_code = error.response.status_code if error.response else None
+                if status_code in (404, 410):
+                    db.delete(subscription)
+                    expired += 1
+                else:
+                    log.warning(
+                        "Web Push delivery failed for subscription %s with status %s",
+                        subscription.id,
+                        status_code,
+                    )
+                    failed += 1
+            else:
+                db.add(PushDelivery(
+                    reminder_id=reminder.id,
+                    subscription_id=subscription.id,
+                    due_at=reminder.due_at,
+                ))
+                delivered += 1
+        if stop:
+            break
+
+    db.commit()
+    return {
+        "attempted": attempted,
+        "delivered": delivered,
+        "expired_subscriptions": expired,
+        "failed": failed,
+    }
+
+
 @router.get("/confirmed-prescriptions")
 def list_confirmed_prescriptions(
     profile: Profile = Depends(_requested_active_profile),
@@ -169,7 +463,6 @@ def list_confirmed_prescriptions(
 def suggest_routine(
     body: RoutineRequest,
     profile: Profile = Depends(_requested_active_profile),
-    db: Session = Depends(get_db),
 ):
     context = {
         "name": profile.name,
@@ -324,4 +617,3 @@ def delete_reminder(
     reminder = _owned_reminder(reminder_id, profile, db)
     db.delete(reminder)
     db.commit()
-
