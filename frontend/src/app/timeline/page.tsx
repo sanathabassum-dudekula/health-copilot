@@ -8,7 +8,7 @@ import Timeline from "@/components/Timeline";
 import { EmptyState, Skeleton } from "@/components/ui";
 
 const TYPES: { key: string; icon: IconName }[] = [
-  { key: "reports", icon: "file" }, { key: "medicines", icon: "pill" }, { key: "diagnoses", icon: "steth" },
+  { key: "reports", icon: "file" }, { key: "medicines", icon: "pill" }, { key: "diagnoses", icon: "steth" }, { key: "vitals", icon: "activity" },
 ];
 
 export default function TimelinePage() {

@@ -90,6 +90,12 @@ export default function AssistantPage() {
   }, []);
 
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("ask") === "vitals") {
+      setDraft(t("assistant.promptVitals"));
+    }
+  }, [t]);
+
+  useEffect(() => {
     if (voicePreferenceLoaded) return;
     try {
       setSpeakResponses(localStorage.getItem(SPEAK_RESPONSES_STORAGE_KEY) === "true");
@@ -402,6 +408,7 @@ export default function AssistantPage() {
     t("assistant.promptAllergy"),
     t("assistant.promptMedicine"),
     t("assistant.promptResults"),
+    t("assistant.promptVitals"),
   ];
 
   return (

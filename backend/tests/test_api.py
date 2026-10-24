@@ -74,6 +74,18 @@ def test_full_flow(monkeypatch):
         tests = [e["test"] for e in d["summary"]["abnormal_explanations"]]
         assert tests[0] == "Potassium" and "Haemoglobin" in tests and "Invented Test" not in tests
         assert "contact a doctor promptly" in d["summary"]["abnormal_explanations"][0]["what_it_means"]
+        assert len(d["summary"]["urgent_actions"]) == 2
+
+        with summarize.SessionLocal() as db:
+            stored_document = db.get(summarize.Document, d["id"])
+            assert stored_document is not None and stored_document.summary is not None
+            stored_document.summary = {
+                key: value for key, value in stored_document.summary.items()
+                if key != "urgent_actions"
+            }
+            db.commit()
+        legacy_summary = c.get(f"/documents/{d['id']}/summary?lang=en").json()
+        assert len(legacy_summary["urgent_actions"]) == 2
 
         assert c.get(f"/documents/{d['id']}/file").status_code == 200
         stored_files = list(

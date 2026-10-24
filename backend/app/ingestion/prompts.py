@@ -20,6 +20,7 @@ Rules:
 - Never tell the patient to start, stop, skip, or change any medicine or dose. For medicines, state the general purpose and restate the instructions exactly as given in the record.
 - Never say a doctor visit is unnecessary. Each abnormal value gets one question to ask the doctor.
 - No diagnosis, no treatment advice, no cure claims. Short sentences, no jargon.
+- Leave "urgent_actions" empty; the application fills it only when deterministic checks flag a critical result.
 
 Record:
 {record}"""

@@ -29,6 +29,7 @@ from ..models import (
     Observation,
     Profile,
     Document,
+    VitalSign,
 )
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
@@ -45,6 +46,43 @@ LANGUAGE_NAMES = {
     "te": "Telugu",
     "ta": "Tamil",
 }
+CRITICAL_STATUS = {
+    "en": {"LL": "critically low", "HH": "critically high"},
+    "hi": {"LL": "गंभीर रूप से कम", "HH": "गंभीर रूप से अधिक"},
+    "te": {"LL": "విమర్శనాత్మకంగా తక్కువ", "HH": "విమర్శనాత్మకంగా ఎక్కువ"},
+    "ta": {"LL": "மிகக் குறைவு", "HH": "மிக அதிகம்"},
+}
+CRITICAL_NOTICE = {
+    "en": (
+        "Safety note: the app flagged these extracted report results as {results}. "
+        "The reading may be wrong; check the original report and date. If this is a recent "
+        "result that has not already been addressed, contact the ordering clinician or an "
+        "urgent medical service now for guidance. If you have severe or rapidly worsening "
+        "symptoms, call local emergency services now. Do not change medicines based on this chat."
+    ),
+    "hi": (
+        "सुरक्षा सूचना: ऐप ने रिपोर्ट से निकाले गए इन नतीजों को {results} चिह्नित किया है। "
+        "पढ़ने में गलती हो सकती है; मूल रिपोर्ट और तारीख जाँचें। यदि यह हाल का नतीजा है "
+        "और इस पर पहले कार्रवाई नहीं हुई है, तो सलाह के लिए अभी रिपोर्ट लिखने वाले डॉक्टर "
+        "या तत्काल चिकित्सा सेवा से संपर्क करें। गंभीर या तेजी से बिगड़ते लक्षण हों तो "
+        "स्थानीय आपातकालीन सेवा को अभी कॉल करें। इस चैट के आधार पर दवा न बदलें।"
+    ),
+    "te": (
+        "భద్రతా సూచన: యాప్ ఈ నివేదిక నుంచి తీసిన ఫలితాలను {results}గా గుర్తించింది. "
+        "చదివిన విలువ తప్పు కావచ్చు; అసలు నివేదిక, తేదీని తనిఖీ చేయండి. ఇది ఇటీవలి ఫలితం "
+        "అయి, ఇంకా వైద్యుడితో చర్చించకపోతే, సూచనల కోసం ఇప్పుడే నివేదిక ఇచ్చిన వైద్యుడిని "
+        "లేదా అత్యవసర వైద్య సేవను సంప్రదించండి. తీవ్రమైన లేదా వేగంగా పెరుగుతున్న లక్షణాలు "
+        "ఉంటే స్థానిక అత్యవసర సేవలకు ఇప్పుడే కాల్ చేయండి. ఈ చాట్ ఆధారంగా మందులు మార్చవద్దు."
+    ),
+    "ta": (
+        "பாதுகாப்புக் குறிப்பு: அறிக்கையிலிருந்து எடுக்கப்பட்ட இந்த முடிவுகளை செயலி {results} "
+        "எனக் குறித்துள்ளது. வாசிப்பு தவறாக இருக்கலாம்; அசல் அறிக்கையையும் தேதியையும் "
+        "சரிபார்க்கவும். இது சமீபத்திய முடிவாக இருந்து, இதுவரை கவனிக்கப்படவில்லை என்றால், "
+        "வழிகாட்டுதலுக்காக அறிக்கையை வழங்கிய மருத்துவர் அல்லது அவசர மருத்துவ சேவையை "
+        "இப்போதே தொடர்புகொள்ளவும். கடுமையான அல்லது வேகமாக மோசமடையும் அறிகுறிகள் இருந்தால், "
+        "உள்ளூர் அவசர சேவையை இப்போதே அழைக்கவும். இந்த உரையாடலை வைத்து மருந்துகளை மாற்ற வேண்டாம்."
+    ),
+}
 SYSTEM_PROMPT = """You are Lumi, a multilingual health-information assistant.
 Reply only in the requested language. Be warm, clear, concise, and use plain language.
 You provide general health education, not diagnosis, treatment, or a replacement for a clinician.
@@ -52,9 +90,12 @@ Be conversational and empathetic: acknowledge the person's concern, use natural 
 Only answer questions related to human health, healthcare, symptoms, allergies, medicines, or health records.
 For unrelated requests, politely explain that you are a health assistant and invite a health-related question.
 For health questions, first check for emergency warning signs, then explain what is known and what remains uncertain.
+Put urgent guidance before explanations. If a symptom or finding may need same-day clinical review, state the next step and timeframe clearly rather than only saying "ask a doctor." Do not reassure when key information is missing; ask a focused follow-up while giving safe immediate guidance.
+For an attached report, use only its software-computed critical-result flags for lab urgency. State that extraction can be wrong and the original report/date should be checked. If the result is recent and has not already been addressed, recommend contacting the ordering clinician or an urgent medical service now. Do not imply an old flagged result is a current emergency.
 For symptom or allergy questions, ask only the most important follow-up details, such as when symptoms began,
 possible exposure, severity, and related symptoms. Explain general possibilities without claiming a diagnosis.
 For test reports, explain the provided values and reference ranges without changing units or inventing results.
+Use recent saved vital readings when relevant to the question, stating their value, unit, time, and whether they came from Bluetooth or manual entry. Device and manual readings can be inaccurate or stale; do not diagnose from them, infer an emergency from a reading alone, or reassure someone based only on a seemingly normal reading.
 When asked to prepare for a clinician visit, suggest concise questions grounded in the available records and clearly identify unknown details.
 For reminders, use only dates and schedules the person has verified; never infer medication doses or schedules from incomplete records.
 For photos or scans such as X-rays, describe only general visible information and image limitations.
@@ -188,6 +229,12 @@ def _health_context(profile: Profile, db: Session) -> dict:
         .order_by(Observation.effective_at.desc(), Observation.id.desc())
         .limit(30)
     ).all()
+    recent_vitals = db.scalars(
+        select(VitalSign)
+        .where(VitalSign.profile_id == profile.id)
+        .order_by(VitalSign.captured_at.desc(), VitalSign.id.desc())
+        .limit(30)
+    ).all()
 
     return {
         "age": profile.age,
@@ -228,6 +275,17 @@ def _health_context(profile: Profile, db: Session) -> dict:
             }
             for item in recent_results
         ],
+        "recent_vital_readings": [
+            {
+                "metric": item.metric,
+                "value": item.value,
+                "unit": item.unit,
+                "captured_at": item.captured_at,
+                "source": item.source,
+                "device_name": item.device_name,
+            }
+            for item in recent_vitals
+        ],
         "previous_records_reported_by_user": (profile.previous_records or "")[:1000],
     }
 
@@ -249,6 +307,35 @@ def _conversation_json(conversation: AssistantConversation) -> dict:
         "created_at": conversation.created_at,
         "updated_at": conversation.updated_at,
     }
+
+
+def _critical_results(document: Document) -> list[dict]:
+    return [
+        {
+            "test": observation.display_name,
+            "value": observation.value_num if observation.value_num is not None else observation.value_text,
+            "unit": observation.unit,
+            "flag": observation.interpretation,
+        }
+        for observation in document.observations
+        if observation.interpretation in ("LL", "HH")
+    ]
+
+
+def _critical_report_notice(document: Document | None, language: Language) -> str | None:
+    if document is None:
+        return None
+    results = _critical_results(document)
+    if not results:
+        return None
+    status = CRITICAL_STATUS[language]
+    descriptions = []
+    for result in results:
+        value = result["value"]
+        value_text = format(value, ".6g") if isinstance(value, float) else str(value or "value not available")
+        measurement = " ".join(part for part in (value_text, result["unit"] or "") if part)
+        descriptions.append(f"{result['test']}: {measurement} ({status[result['flag']]})")
+    return CRITICAL_NOTICE[language].format(results="; ".join(descriptions))
 
 
 def _document_context(document: Document) -> str:
@@ -281,6 +368,7 @@ def _document_context(document: Document) -> str:
             "lab_results", ("test_name", "value", "unit", "ref_range", "flag_on_report"),
             limit=40,
         ),
+        "software_critical_results": _critical_results(document),
         "allergies": [
             str(item)[:300]
             for item in extraction.get("allergies", [])[:20]
@@ -589,6 +677,10 @@ def chat(
             status_code=502,
             detail="The health assistant could not prepare a response. Please try again.",
         )
+
+    critical_notice = _critical_report_notice(document, body.language)
+    if critical_notice:
+        answer = f"{answer}\n\n{critical_notice}"
 
     spoken_answer = answer
     voice_translation_error = False

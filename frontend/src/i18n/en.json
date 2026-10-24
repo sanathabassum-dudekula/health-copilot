@@ -121,6 +121,7 @@
   "reasons": "Common reasons",
   "askDoctor": "Ask your doctor",
   "nextSteps": "Next steps",
+  "criticalSummaryTitle": "Important: a result may need prompt attention",
   "medicines": "Medicines",
   "labResults": "Lab results",
   "reference": "Reference",
@@ -138,6 +139,7 @@
   "noSummary": "No summary for this record.",
   "diagnoses": "Diagnoses",
   "reports": "Reports",
+  "vitals": "Vitals",
   "timeline": "Timeline",
   "timelineSub": "Everything in one place, newest first.",
   "tl": {
@@ -146,7 +148,8 @@
     "abnormal_result": "Result",
     "medicine_started": "Medicine started",
     "medicine_ended": "Medicine ended",
-    "diagnosis": "Diagnosis"
+    "diagnosis": "Diagnosis",
+    "vital_sign": "Vital reading"
   },
   "noItems": "Nothing here yet",
   "noItemsSub": "Upload a document to start your timeline.",
@@ -438,6 +441,7 @@
     "promptAllergy": "Could these symptoms be an allergic reaction?",
     "promptMedicine": "Could my allergy be related to a medicine?",
     "promptResults": "Help me understand a recent test result.",
+    "promptVitals": "Please review my recent vital readings. Explain what they may and may not show, and suggest whether I should discuss them with a clinician. Do not diagnose.",
     "inputLabel": "Your health question",
     "placeholder": "Type your question in English, Hindi, Telugu, or Tamil…",
     "send": "Send message",
@@ -635,6 +639,7 @@
     "summaryTitle": "Recent vitals",
     "summaryDescription": "Latest saved measurements for this profile.",
     "manage": "Connect or add readings",
+    "askLumi": "Ask Lumi to review readings",
     "loading": "Loading readings…",
     "noSummary": "No vitals saved yet. Connect a device or add a reading."
   }

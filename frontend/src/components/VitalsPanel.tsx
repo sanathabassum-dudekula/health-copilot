@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import Link from "next/link";
 import { api, VitalMetric, VitalSign } from "@/api";
 import Icon from "@/components/Icon";
 
@@ -129,6 +130,7 @@ export default function VitalsPanel() {
     oxygen_saturation: 0,
     body_temperature: 0,
   });
+  const bluetoothSavesInFlight = useRef(new Set<VitalMetric>());
 
   const refresh = useCallback(async () => {
     try {
@@ -170,8 +172,8 @@ export default function VitalsPanel() {
         },
       }));
       const now = Date.now();
-      if (now - lastBluetoothSave.current[kind] < 60_000) return true;
-      lastBluetoothSave.current[kind] = now;
+      if (now - lastBluetoothSave.current[kind] < 60_000 || bluetoothSavesInFlight.current.has(kind)) return true;
+      bluetoothSavesInFlight.current.add(kind);
     }
 
     try {
@@ -182,12 +184,15 @@ export default function VitalsPanel() {
         ...(deviceName ? { device_name: deviceName } : {}),
         captured_at: capturedAt,
       });
+      if (source === "bluetooth") lastBluetoothSave.current[kind] = Date.now();
       setReadings((current) => [saved, ...current.filter((item) => item.id !== saved.id)].slice(0, 30));
       setError("");
       return true;
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : t("wearables.saveError"));
       return false;
+    } finally {
+      if (source === "bluetooth") bluetoothSavesInFlight.current.delete(kind);
     }
   }, [t]);
 
@@ -320,6 +325,10 @@ export default function VitalsPanel() {
           : supported ? t("wearables.bluetoothNote") : t("wearables.unsupported")}
       </p>
 
+      <Link href="/assistant?ask=vitals" className="btn btn-soft w-fit">
+        <Icon name="message" className="h-4 w-4" />{t("wearables.askLumi")}
+      </Link>
+
       {error && <p role="alert" className="rounded-xl border border-crit/30 bg-crit-soft px-3 py-2 text-sm text-crit">{error}</p>}
 
       <div>
@@ -377,5 +386,4 @@ export default function VitalsPanel() {
     </section>
   );
 }
-
 

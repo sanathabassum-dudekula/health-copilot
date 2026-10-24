@@ -113,6 +113,7 @@ class MedicineExplained(BaseModel):
 class Summary(BaseModel):
     headline: str
     key_points: list[str]
-    abnormal_explanations: list[AbnormalExplanation] = []
-    medicines_explained: list[MedicineExplained] = []
-    next_steps: list[str] = []
+    urgent_actions: list[str] = Field(default_factory=list)
+    abnormal_explanations: list[AbnormalExplanation] = Field(default_factory=list)
+    medicines_explained: list[MedicineExplained] = Field(default_factory=list)
+    next_steps: list[str] = Field(default_factory=list)

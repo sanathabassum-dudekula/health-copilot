@@ -72,7 +72,7 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
 const post = <T,>(p: string, body?: unknown) => req<T>(p, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 
 export type Summary = {
-  headline: string; key_points: string[]; next_steps: string[];
+  headline: string; key_points: string[]; urgent_actions?: string[]; next_steps: string[];
   abnormal_explanations: { test: string; value: string; status: string; what_it_means: string; common_reasons: string; question_for_doctor: string }[];
   medicines_explained: { name: string; general_purpose: string; how_to_take: string }[];
 };
@@ -174,7 +174,7 @@ export type Doc = {
 };
 export type Obs = { id: number; display_name: string; value_num: number | null; value_text: string | null; unit: string | null; ref_low: number | null; ref_high: number | null; interpretation: string | null; note: string | null };
 export type Med = { id: number; brand_name: string; salt: string | null; strength: string | null; dose_pattern: string | null; timing: string | null; duration_days: number | null };
-export type TimelineItem = { type: string; date: string; document_id: number; title: string; detail: string | null; interpretation?: string; review_status?: "pending" | "confirmed" | "rejected"; source: string };
+export type TimelineItem = { type: string; date: string; document_id?: number | null; title: string; detail: string | null; interpretation?: string; review_status?: "pending" | "confirmed" | "rejected"; source: string; device_name?: string | null };
 export type Profile = {
   oid: string;
   name: string;

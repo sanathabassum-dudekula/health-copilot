@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -10,7 +10,7 @@ from ..access import profile_oid_for
 from ..auth import active_profile, current_profile, delete_profile_data
 from ..db import get_db
 from ..fhir.serialize import to_bundle
-from ..models import Allergy, Condition, Document, Medication, Observation, Profile
+from ..models import Allergy, Condition, Document, Medication, Observation, Profile, VitalSign
 
 router = APIRouter(tags=["profile"])
 ABNORMAL = ("L", "H", "LL", "HH")
@@ -111,7 +111,7 @@ def delete_profile(p: Profile = Depends(current_profile), db: Session = Depends(
 
 
 @router.get("/profile/timeline")
-def timeline(types: str = "reports,medicines,diagnoses", p: Profile = Depends(active_profile),
+def timeline(types: str = "reports,medicines,diagnoses,vitals", p: Profile = Depends(active_profile),
              db: Session = Depends(get_db)):
     want = set(types.split(","))
     items = []
@@ -136,6 +136,23 @@ def timeline(types: str = "reports,medicines,diagnoses", p: Profile = Depends(ac
         for c in _q(db, p, Condition):
             items.append({"type": "diagnosis", "date": c.recorded_at, "document_id": c.document_id,
                           "title": c.name, "detail": None, "source": docs[c.document_id].source})
+    if "vitals" in want:
+        readings = db.scalars(
+            select(VitalSign)
+            .where(VitalSign.profile_id == p.id)
+            .order_by(VitalSign.captured_at.desc(), VitalSign.id.desc())
+            .limit(100)
+        )
+        for reading in readings:
+            items.append({
+                "type": "vital_sign",
+                "date": reading.captured_at,
+                "document_id": None,
+                "title": reading.metric,
+                "detail": f"{reading.value:g} {reading.unit}",
+                "source": reading.source,
+                "device_name": reading.device_name,
+            })
 
     # Injury events are derived from the document's stored extraction.
     # Do not expose pregnancy or reproductive-health fields in this general timeline.
@@ -185,7 +202,13 @@ def timeline(types: str = "reports,medicines,diagnoses", p: Profile = Depends(ac
                     "source": d.source,
                 })
 
-    return sorted((i for i in items if i["date"]), key=lambda i: i["date"], reverse=True)
+    def sort_date(item: dict) -> datetime:
+        value = item["date"]
+        if isinstance(value, datetime):
+            return value.astimezone(timezone.utc).replace(tzinfo=None) if value.tzinfo else value
+        return datetime.combine(value, datetime.min.time())
+
+    return sorted((i for i in items if i["date"]), key=sort_date, reverse=True)
 
 
 @router.get("/profile/fhir")

@@ -15,7 +15,7 @@ from ..access import is_requested_profile
 from ..auth import active_profile
 from ..db import get_db
 from ..ingestion.graph import run_ingest
-from ..ingestion.summarize import LANGS, translate_summary
+from ..ingestion.summarize import CRITICAL_ACTIONS, LANGS, translate_summary
 from ..models import Document, Profile
 from ..storage import delete_file, download_file, upload_file as store_file
 
@@ -194,8 +194,17 @@ def get_summary(
     if not d.summary:
         raise HTTPException(409, "Summary not ready")
 
+    summary = dict(d.summary)
+    if any(
+        observation.interpretation in ("LL", "HH")
+        for observation in d.observations
+    ):
+        summary["urgent_actions"] = CRITICAL_ACTIONS.copy()
+    else:
+        summary.setdefault("urgent_actions", [])
+
     if lang == "en":
-        return d.summary
+        return summary
 
     if lang not in LANGS:
         raise HTTPException(
@@ -204,10 +213,12 @@ def get_summary(
 
     cached = d.summary_i18n or {}
 
-    if lang not in cached:
+    if lang not in cached or (
+        summary["urgent_actions"] and "urgent_actions" not in cached[lang]
+    ):
         cached = {
             **cached,
-            lang: translate_summary(d.summary, lang),
+            lang: translate_summary(summary, lang),
         }
         d.summary_i18n = cached
         db.commit()

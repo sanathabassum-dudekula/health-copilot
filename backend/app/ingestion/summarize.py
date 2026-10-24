@@ -12,6 +12,10 @@ from .schemas import Summary
 
 log = logging.getLogger(__name__)
 CRITICAL_MSG = "This value is far outside the usual range. Please contact a doctor promptly."
+CRITICAL_ACTIONS = [
+    "The app flagged an extracted result as critically high or low. Check the value and date on the original report. If it is recent and has not already been addressed, contact the ordering clinician or an urgent medical service now for guidance.",
+    "If you have severe or rapidly worsening symptoms, call local emergency services now. Do not wait for this app or change medicines based on this summary.",
+]
 STATUS = {"L": "Low", "H": "High", "LL": "Critically low", "HH": "Critically high"}
 LANGS = {"hi": "Hindi", "te": "Telugu"}
 
@@ -90,6 +94,9 @@ def template_summary(record: dict, abnormal: list[dict]) -> dict:
             {"name": m["brand_name"], "general_purpose": m["salt"] or "",
              "how_to_take": " ".join(x for x in [m["dose_pattern"], m["timing"], m["duration_days"] and f"for {m['duration_days']} days"] if x)}
             for m in meds],
+        "urgent_actions": CRITICAL_ACTIONS.copy() if any(
+            a["code"] in ("LL", "HH") for a in abnormal
+        ) else [],
         "next_steps": ["Discuss this document with your doctor."] + ([record["follow_up"]] if record["follow_up"] else []),
     }
 
@@ -128,6 +135,7 @@ def build_summary(record: dict) -> dict:
         log.exception("summary LLM failed; using template")
     if summary is None:
         return template_summary(record, abnormal)
+    summary["urgent_actions"] = CRITICAL_ACTIONS.copy() if critical else []
     allowed = {a["test"] for a in rest}
     summary["abnormal_explanations"] = [
         {"test": c["test"], "value": c["value"], "status": c["status"], "what_it_means": CRITICAL_MSG,

@@ -11,8 +11,20 @@ const Line = ({ icon, label, text }: { icon: IconName; label: string; text: stri
 
 export default function SummaryCard({ s, observations }: { s: Summary; observations: Obs[] }) {
   const { t } = useTranslation();
+  const urgentActions = s.urgent_actions ?? [];
   return (
     <div className="space-y-8">
+      {urgentActions.length > 0 && (
+        <section role="alert" className="card reveal border-crit/40 bg-crit-soft p-5 text-ink md:p-6">
+          <div className="flex items-center gap-2">
+            <Icon name="alert" className="h-5 w-5 shrink-0 text-crit" />
+            <h2 className="font-semibold text-crit">{t("criticalSummaryTitle")}</h2>
+          </div>
+          <ul className="mt-3 list-disc space-y-2 pl-7 text-sm leading-6">
+            {urgentActions.map((action, i) => <li key={i}>{action}</li>)}
+          </ul>
+        </section>
+      )}
       <section className="card reveal relative overflow-hidden p-6 md:p-8">
         <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-brand-soft blur-2xl" aria-hidden />
         <Badge tone="brand" icon="sparkles">{t("aiSummary")}</Badge>
