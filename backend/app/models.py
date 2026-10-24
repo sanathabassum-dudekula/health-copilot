@@ -75,6 +75,13 @@ class Profile(Base):
     sex: Mapped[str | None] = mapped_column(String, nullable=True)
     age: Mapped[int | None] = mapped_column(Integer, nullable=True)
     blood_group: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    pin_hash: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    pin_failed_attempts: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
+    pin_locked_until: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
 
     # Additional information entered in the profile form
     allergies_text: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -330,6 +337,24 @@ class AssistantMessage(Base):
     conversation: Mapped["AssistantConversation | None"] = relationship(
         back_populates="messages"
     )
+
+
+class FamilyInvitation(Base):
+    __tablename__ = "family_invitations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    phone_number: Mapped[str] = mapped_column(String(32))
+    relationship_label: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(16), default="pending", server_default="pending", index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class AuthSession(Base):

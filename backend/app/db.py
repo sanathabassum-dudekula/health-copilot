@@ -57,6 +57,9 @@ def init_db():
                 "previous_records": "VARCHAR",
                 "emergency_contact_name": "VARCHAR(120)",
                 "emergency_contact_phone": "VARCHAR(40)",
+                "pin_hash": "VARCHAR(256)",
+                "pin_failed_attempts": "INTEGER NOT NULL DEFAULT 0",
+                "pin_locked_until": "TIMESTAMP",
             }
             for name, sql_type in new_columns.items():
                 if name not in columns:

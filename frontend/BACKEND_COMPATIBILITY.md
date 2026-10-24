@@ -12,13 +12,15 @@ This package is based on the latest frontend source supplied for this task. `nex
 - `GET /documents/{doc_id}`
 - `GET /documents/{doc_id}/file`
 - `GET /documents/{doc_id}/summary`
-- `GET/POST/DELETE /family` and `DELETE /family/{oid}`
+- `GET/POST /family`, `GET/PUT/DELETE /family/{oid}`, and `/family/active`
+- `/family/{oid}/set-pin`, `/family/{oid}/unlock`, `/family/{oid}/reset-pin`
+- `/family/switch-to-owner` and `/family/invitations`
 - `/assistant/*`, `/reminders/*`, `/insights`, and `/vitals`
 - `POST /abha/link`, `/abha/verify`, `/abha/import`
 
-## Known family API mismatch
+Family profile management, PIN protection, profile switching, and pending invitation records require a signed-in account. Invitations are saved to the backend as pending records; no SMS is sent and phone verification is not enabled.
 
-The frontend calls `/family/active`, profile lookup/update, PIN management, profile switching, and invitation endpoints. Those routes are not implemented by the current backend family router, so the corresponding UI flows will fail until the backend support is restored or the frontend is adapted. Do not enable these flows in production until authorization behavior has been reviewed and tested.
+The guest experience remains available for non-family workflows. Do not use this prototype with real health information until production access controls, storage, backups, and privacy/security controls are independently verified.
 
 ## Run locally
 

@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import secrets
 import shutil
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import Depends, Header, HTTPException, Request, Response
@@ -12,11 +12,14 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .db import get_db
-from .models import AuthSession, Profile, User, Visit
 from .models import AuthSession, FamilyLink, Profile, User, Visit
 
 SESSION_COOKIE = "curamind_session"
 SESSION_TTL = timedelta(days=30)
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def hash_password(password: str) -> str:
@@ -58,7 +61,7 @@ def get_auth_session(token: str | None, db: Session) -> AuthSession | None:
     if not session:
         return None
 
-    if session.expires_at <= datetime.utcnow():
+    if session.expires_at <= _utcnow():
         db.delete(session)
         db.commit()
         return None
@@ -80,7 +83,7 @@ def create_session(user: User, db: Session) -> str:
         AuthSession(
             token_hash=token_digest(token),
             user_id=user.id,
-            expires_at=datetime.utcnow() + SESSION_TTL,
+            expires_at=_utcnow() + SESSION_TTL,
         )
     )
     db.commit()

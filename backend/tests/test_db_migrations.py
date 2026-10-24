@@ -79,6 +79,9 @@ def test_init_db_adds_profile_fields_to_existing_schema(monkeypatch, tmp_path):
         "previous_records",
         "emergency_contact_name",
         "emergency_contact_phone",
+        "pin_hash",
+        "pin_failed_attempts",
+        "pin_locked_until",
     } <= columns
     user_columns = {
         column["name"]
@@ -128,6 +131,17 @@ def test_init_db_adds_profile_fields_to_existing_schema(monkeypatch, tmp_path):
     assert {"spoken_title", "spoken_details"} <= {
         column["name"]
         for column in inspect(legacy_engine).get_columns("health_reminders")
+    }
+    assert {
+        "owner_user_id",
+        "phone_number",
+        "relationship_label",
+        "status",
+        "created_at",
+        "expires_at",
+    } <= {
+        column["name"]
+        for column in inspect(legacy_engine).get_columns("family_invitations")
     }
     legacy_engine.dispose()
 
