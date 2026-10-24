@@ -25,8 +25,7 @@ type BluetoothDeviceLike = EventTarget & {
 };
 type BluetoothManagerLike = {
   requestDevice(options: {
-    filters?: { services: string[] }[];
-    acceptAllDevices?: boolean;
+    acceptAllDevices: boolean;
     optionalServices: string[];
   }): Promise<BluetoothDeviceLike>;
 };
@@ -93,8 +92,11 @@ function parseMeasurement(metric: VitalMetric, data: DataView): [VitalMetric, nu
 
   if (metric === "body_temperature") {
     if (data.byteLength < 5) return [];
-    const temperature = readFloat(data, 1);
-    const celsius = data.getUint8(0) & 0x01
+    const flags = data.getUint8(0);
+    const measurementOffset = 1 + ((flags & 0x02) ? 7 : 0);
+    if (data.byteLength < measurementOffset + 4) return [];
+    const temperature = readFloat(data, measurementOffset);
+    const celsius = flags & 0x01
       ? (temperature - 32) * 5 / 9
       : temperature;
     return Number.isFinite(celsius) ? [["body_temperature", celsius]] : [];
@@ -263,7 +265,22 @@ export default function VitalsPanel({ profileOid }: { profileOid: string }) {
       deviceRef.current?.gatt?.disconnect();
       deviceRef.current = null;
       setConnectedName("");
-      setError(connectionError instanceof Error ? connectionError.message : t("wearables.connectionError"));
+      const errorName = connectionError instanceof DOMException
+        ? connectionError.name
+        : "";
+      if (errorName === "NotFoundError") {
+        setError("");
+      } else if (errorName === "NotAllowedError") {
+        setError(t("wearables.permissionError"));
+      } else if (errorName === "SecurityError") {
+        setError(t("wearables.securityError"));
+      } else if (errorName === "NetworkError") {
+        setError(t("wearables.connectionError"));
+      } else if (connectionError instanceof Error && connectionError.message) {
+        setError(connectionError.message);
+      } else {
+        setError(t("wearables.connectionError"));
+      }
     } finally {
       setConnecting(false);
     }

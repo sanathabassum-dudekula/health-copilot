@@ -160,6 +160,87 @@ def test_visitors_are_isolated():
         assert a.get("/profile").json()["name"] == "Alice"
         assert b.get("/profile").json()["name"] == "Guest"
 
+
+def test_womens_health_features_are_optional_per_profile_and_gender_independent():
+    with TestClient(app, headers=_visit()) as c:
+        initial = c.get("/profile").json()["womens_health_profile"]
+        assert initial["cycle_tracker_enabled"] is False
+        assert initial["pregnancy_tracker_enabled"] is False
+
+        invalid_cycle = c.put(
+            "/profile",
+            json={
+                "womens_health_profile": {
+                    "cycle_tracker_enabled": True,
+                    "cycle_length_days": 367,
+                }
+            },
+        )
+        assert invalid_cycle.status_code == 422
+        future_period = c.put(
+            "/profile",
+            json={
+                "womens_health_profile": {
+                    "cycle_tracker_enabled": True,
+                    "period_start_dates": ["2999-01-01"],
+                }
+            },
+        )
+        assert future_period.status_code == 422
+
+        enabled = c.put(
+            "/profile",
+            json={
+                "sex": "male",
+                "womens_health_profile": {
+                    "cycle_tracker_enabled": True,
+                    "last_period_date": "2026-10-01",
+                    "period_start_dates": ["2026-08-03", "2026-09-02", "2026-10-01"],
+                    "cycle_length_days": 29,
+                    "pregnancy_tracker_enabled": True,
+                    "pregnancy_status": "postpartum",
+                    "pregnancy_notes": "Follow-up recorded",
+                },
+            },
+        )
+        assert enabled.status_code == 200, enabled.text
+        settings = enabled.json()["womens_health_profile"]
+        assert settings["cycle_tracker_enabled"] is True
+        assert settings["last_period_date"] == "2026-10-01"
+        assert settings["period_start_dates"] == [
+            "2026-08-03",
+            "2026-09-02",
+            "2026-10-01",
+        ]
+        assert settings["pregnancy_status"] == "postpartum"
+
+        cycle_disabled = c.put(
+            "/profile",
+            json={
+                "womens_health_profile": {"cycle_tracker_enabled": False}
+            },
+        )
+        assert cycle_disabled.status_code == 200, cycle_disabled.text
+        settings = cycle_disabled.json()["womens_health_profile"]
+        assert settings["cycle_tracker_enabled"] is False
+        assert settings["last_period_date"] is None
+        assert settings["period_start_dates"] == []
+        assert settings["pregnancy_tracker_enabled"] is True
+        assert settings["pregnancy_notes"] == "Follow-up recorded"
+
+        pregnancy_disabled = c.put(
+            "/profile",
+            json={
+                "womens_health_profile": {"pregnancy_tracker_enabled": False}
+            },
+        )
+        assert pregnancy_disabled.status_code == 200, pregnancy_disabled.text
+        settings = pregnancy_disabled.json()["womens_health_profile"]
+        assert settings["pregnancy_tracker_enabled"] is False
+        assert settings["pregnancy_status"] == "unknown"
+        assert settings["pregnancy_notes"] is None
+
+
 def test_injury_timeline_is_opt_in_and_private_fields_stay_hidden(monkeypatch):
     injury_extraction = DocumentExtraction.model_validate({
         "doc_type": "fracture_or_injury_report",

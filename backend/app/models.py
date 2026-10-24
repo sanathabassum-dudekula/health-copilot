@@ -1,4 +1,4 @@
-﻿
+
 from datetime import date, datetime
 
 from sqlalchemy import (
@@ -88,6 +88,9 @@ class Profile(Base):
     conditions_text: Mapped[str | None] = mapped_column(String, nullable=True)
     medicines_text: Mapped[str | None] = mapped_column(String, nullable=True)
     previous_records: Mapped[str | None] = mapped_column(String, nullable=True)
+    womens_health_profile: Mapped[dict] = mapped_column(
+        JSON, default=dict, server_default="{}", nullable=False
+    )
 
     # Emergency contact
     emergency_contact_name: Mapped[str | None] = mapped_column(

@@ -182,6 +182,7 @@ export type Profile = {
   language: string;
   voice_language: string;
   voice_reminders_enabled: boolean;
+  womens_health_profile: WomensHealthProfile;
   dob: string | null;
   sex: string | null;
   blood_group: string | null;
@@ -215,6 +216,23 @@ export type Profile = {
   }[];
 };
 
+export type WomensHealthProfile = {
+  cycle_tracker_enabled: boolean;
+  pregnancy_tracker_enabled: boolean;
+  menopause_fertility_enabled: boolean;
+  screening_enabled: boolean;
+  last_period_date: string | null;
+  period_start_dates: string[];
+  cycle_length_days: number | null;
+  pregnancy_status: "unknown" | "pregnant" | "not_pregnant" | "postpartum";
+  estimated_due_date: string | null;
+  pregnancy_notes: string | null;
+  menopause_notes: string | null;
+  fertility_notes: string | null;
+  cervical_screening_notes: string | null;
+  breast_health_notes: string | null;
+};
+
 export type ProfileFields = {
   name?: string;
   dob?: string | null;
@@ -230,6 +248,7 @@ export type ProfileFields = {
   preferred_language?: string;
   preferred_voice_language?: "en" | "hi" | "te" | "ta";
   voice_reminders_enabled?: boolean;
+  womens_health_profile?: WomensHealthProfile;
 };
 
 export type VitalMetric = "heart_rate" | "oxygen_saturation" | "body_temperature";

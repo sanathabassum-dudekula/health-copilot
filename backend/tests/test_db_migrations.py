@@ -77,6 +77,7 @@ def test_init_db_adds_profile_fields_to_existing_schema(monkeypatch, tmp_path):
         "conditions_text",
         "medicines_text",
         "previous_records",
+        "womens_health_profile",
         "emergency_contact_name",
         "emergency_contact_phone",
         "pin_hash",

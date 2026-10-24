@@ -40,6 +40,8 @@ NMR, HPR, HFR and ABHA are different identifiers. Store each in its own field; d
 Do not add columns to a live database by editing `models.py` alone. When these entities are implemented, use Alembic migrations, back up the database, test migration and rollback on a copy, then deploy. Keep current `Profile.user_id` one-to-one until a deliberate migration supports multiple family profiles. Family profiles are not safe to enable just by changing the ORM relationship; endpoints, ownership checks, deletion, FHIR export and all queries must be profile-scoped first.
 
 ## Women's health privacy and clinical safeguards
+- The profile offers independently enabled cycle tracking with manual period-start history, pregnancy/postpartum, menopause/fertility, and screening topics regardless of profile sex. Each topic is off by default; disabling it clears the corresponding profile-entered fields.
+- Cycle dates and pregnancy details are manual records. The app does not calculate a period date, due date, or gestational age.
 - All fields can be null/unknown. Do not calculate or fill LMP/EDD/gestational age unless the user requests a clearly labelled calculation and the required date is supplied.
 - Ask permission before recording reproductive-health details. Provide a way to correct/delete them and avoid exposing them in notifications, audit logs or shared summaries unnecessarily.
 - Pregnancy red flags should route to urgent clinician/emergency guidance, not an AI diagnosis.

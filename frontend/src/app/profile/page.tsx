@@ -5,10 +5,27 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { api, Profile } from "@/api";
+import { api, Profile, WomensHealthProfile } from "@/api";
 import { useProfile } from "@/Shell";
 import { LANGS, Lang } from "@/i18n";
 import { useToast } from "@/components/Toast";
+
+const EMPTY_WOMENS_HEALTH_PROFILE: WomensHealthProfile = {
+  cycle_tracker_enabled: false,
+  pregnancy_tracker_enabled: false,
+  menopause_fertility_enabled: false,
+  screening_enabled: false,
+  last_period_date: null,
+  period_start_dates: [],
+  cycle_length_days: null,
+  pregnancy_status: "unknown",
+  estimated_due_date: null,
+  pregnancy_notes: null,
+  menopause_notes: null,
+  fertility_notes: null,
+  cervical_screening_notes: null,
+  breast_health_notes: null,
+};
 
 export default function ProfilePage() {
   const { t, i18n } = useTranslation();
@@ -23,6 +40,11 @@ export default function ProfilePage() {
   const [language, setLanguage] = useState<Lang>("en");
   const [voiceLanguage, setVoiceLanguage] = useState<Lang>("en");
   const [voiceReminders, setVoiceReminders] = useState(false);
+  const [womensHealth, setWomensHealth] = useState<WomensHealthProfile>(EMPTY_WOMENS_HEALTH_PROFILE);
+  const [periodEntryDate, setPeriodEntryDate] = useState("");
+  const [womensHealthSaving, setWomensHealthSaving] = useState(false);
+  const [womensHealthMessage, setWomensHealthMessage] = useState("");
+  const [womensHealthError, setWomensHealthError] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -39,6 +61,11 @@ export default function ProfilePage() {
     setLanguage((profile.language in LANGS ? profile.language : "en") as Lang);
     setVoiceLanguage((profile.voice_language in LANGS ? profile.voice_language : "en") as Lang);
     setVoiceReminders(profile.voice_reminders_enabled);
+    setWomensHealth({
+      ...EMPTY_WOMENS_HEALTH_PROFILE,
+      ...profile.womens_health_profile,
+    });
+    setPeriodEntryDate(new Date().toISOString().slice(0, 10));
   }, [profile]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -91,11 +118,90 @@ export default function ProfilePage() {
     }
   }
 
+  function setWomenFeature(
+    feature: "cycle_tracker_enabled" | "pregnancy_tracker_enabled" | "menopause_fertility_enabled" | "screening_enabled",
+    enabled: boolean,
+  ) {
+    setWomensHealth((current) => {
+      const next = { ...current, [feature]: enabled };
+      if (!enabled && feature === "cycle_tracker_enabled") {
+        next.last_period_date = null;
+        next.period_start_dates = [];
+        next.cycle_length_days = null;
+      } else if (!enabled && feature === "pregnancy_tracker_enabled") {
+        next.pregnancy_status = "unknown";
+        next.estimated_due_date = null;
+        next.pregnancy_notes = null;
+      } else if (!enabled && feature === "menopause_fertility_enabled") {
+        next.menopause_notes = null;
+        next.fertility_notes = null;
+      } else if (!enabled && feature === "screening_enabled") {
+        next.cervical_screening_notes = null;
+        next.breast_health_notes = null;
+      }
+      return next;
+    });
+    setWomensHealthMessage("");
+    setWomensHealthError("");
+  }
+
+  async function handleWomensHealthSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setWomensHealthMessage("");
+    setWomensHealthError("");
+    setWomensHealthSaving(true);
+    try {
+      await api.updateProfile({ womens_health_profile: womensHealth });
+      await reload();
+      setWomensHealthMessage(t("profile.womensHealthSaved"));
+    } catch {
+      setWomensHealthError(t("profile.error"));
+    } finally {
+      setWomensHealthSaving(false);
+    }
+  }
+
+  function addPeriodStartDate() {
+    if (
+      !periodEntryDate
+      || womensHealth.period_start_dates.includes(periodEntryDate)
+      || womensHealth.period_start_dates.length >= 60
+    ) return;
+    const periodDates = [...womensHealth.period_start_dates, periodEntryDate].sort();
+    setWomensHealth((current) => ({
+      ...current,
+      period_start_dates: periodDates,
+      last_period_date: periodDates[periodDates.length - 1],
+    }));
+    setWomensHealthMessage("");
+    setWomensHealthError("");
+  }
+
+  function removePeriodStartDate(periodDate: string) {
+    const periodDates = womensHealth.period_start_dates.filter((day) => day !== periodDate);
+    setWomensHealth((current) => ({
+      ...current,
+      period_start_dates: periodDates,
+      last_period_date: periodDates[periodDates.length - 1] ?? null,
+    }));
+    setWomensHealthMessage("");
+    setWomensHealthError("");
+  }
+
   const countCards = [
     { label: t("profile.conditions"), count: profile?.conditions?.length ?? 0 },
     { label: t("profile.medications"), count: profile?.current_medicines?.length ?? 0 },
     { label: t("profile.allergies"), count: profile?.allergies?.length ?? 0 },
   ];
+  const recentPeriodDates = womensHealth.period_start_dates.slice(-7);
+  const cycleIntervals = recentPeriodDates.slice(1).map((periodDate, index) => {
+    const current = Date.parse(`${periodDate}T00:00:00Z`);
+    const previous = Date.parse(`${recentPeriodDates[index]}T00:00:00Z`);
+    return Math.round((current - previous) / 86_400_000);
+  });
+  const averageRecordedCycle = cycleIntervals.length
+    ? Math.round(cycleIntervals.reduce((total, interval) => total + interval, 0) / cycleIntervals.length)
+    : null;
 
   return (
     <main className="mx-auto w-full max-w-5xl space-y-6">
@@ -179,6 +285,160 @@ export default function ProfilePage() {
             <p className="mt-1 text-xs text-muted">{t("profile.healthRecordsDescription")}</p>
           </div>
         </div>
+      </section>
+
+      <section className="card p-5 sm:p-7">
+        <div>
+          <h2 className="text-lg font-semibold">{t("profile.womensHealthTitle")}</h2>
+          <p className="mt-1 text-sm text-muted">{t("profile.womensHealthDescription")}</p>
+        </div>
+        <form onSubmit={handleWomensHealthSubmit} className="mt-5 space-y-5">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {([
+              ["cycle_tracker_enabled", "cycleTracker", "cycleTrackerDescription"],
+              ["pregnancy_tracker_enabled", "pregnancyTracker", "pregnancyTrackerDescription"],
+              ["menopause_fertility_enabled", "menopauseFertility", "menopauseFertilityDescription"],
+              ["screening_enabled", "screening", "screeningDescription"],
+            ] as const).map(([feature, title, description]) => (
+              <label key={feature} className="flex items-start gap-3 rounded-xl border border-line p-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={womensHealth[feature]}
+                  onChange={(event) => setWomenFeature(feature, event.target.checked)}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="block font-medium">{t(`profile.${title}`)}</span>
+                  <span className="mt-1 block text-xs font-normal text-muted">{t(`profile.${description}`)}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+
+          {womensHealth.cycle_tracker_enabled && (
+            <fieldset className="space-y-3 rounded-xl border border-line p-4">
+              <legend className="px-1 text-sm font-semibold">{t("profile.cycleTracker")}</legend>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-sm">
+                  {t("profile.periodStartDate")}
+                  <input
+                    className="input mt-1 w-full"
+                    type="date"
+                    max={new Date().toISOString().slice(0, 10)}
+                    value={periodEntryDate}
+                    onChange={(event) => setPeriodEntryDate(event.target.value)}
+                  />
+                  <button type="button" className="btn btn-ghost mt-2" onClick={addPeriodStartDate} disabled={!periodEntryDate || womensHealth.period_start_dates.includes(periodEntryDate) || womensHealth.period_start_dates.length >= 60}>
+                    {t("profile.addPeriodStartDate")}
+                  </button>
+                </label>
+                <label className="text-sm">
+                  {t("profile.cycleLength")}
+                  <input
+                    className="input mt-1 w-full"
+                    type="number"
+                    min={1}
+                    max={366}
+                    value={womensHealth.cycle_length_days ?? ""}
+                    onChange={(event) => setWomensHealth((current) => ({ ...current, cycle_length_days: event.target.value ? Number(event.target.value) : null }))}
+                  />
+                </label>
+              </div>
+              {womensHealth.period_start_dates.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium">{t("profile.periodHistory")}</h3>
+                  {averageRecordedCycle !== null && (
+                    <p className="mt-1 text-sm text-muted">
+                      {t("profile.averageRecordedCycle", { days: averageRecordedCycle })}
+                    </p>
+                  )}
+                  <ul className="mt-2 space-y-2">
+                    {[...womensHealth.period_start_dates].reverse().map((periodDate) => (
+                      <li key={periodDate} className="flex items-center justify-between gap-3 rounded-lg bg-surface-2 px-3 py-2 text-sm">
+                        <time dateTime={periodDate}>{new Date(`${periodDate}T00:00:00`).toLocaleDateString(i18n.language)}</time>
+                        <button type="button" className="text-crit underline" onClick={() => removePeriodStartDate(periodDate)}>
+                          {t("profile.removePeriodEntry")}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <p className="text-xs text-muted">{t("profile.cycleTrackerDisclaimer")}</p>
+            </fieldset>
+          )}
+
+          {womensHealth.pregnancy_tracker_enabled && (
+            <fieldset className="space-y-3 rounded-xl border border-line p-4">
+              <legend className="px-1 text-sm font-semibold">{t("profile.pregnancyTracker")}</legend>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-sm">
+                  {t("profile.pregnancyStatus")}
+                  <select
+                    className="input mt-1 w-full"
+                    value={womensHealth.pregnancy_status}
+                    onChange={(event) => setWomensHealth((current) => ({ ...current, pregnancy_status: event.target.value as WomensHealthProfile["pregnancy_status"] }))}
+                  >
+                    <option value="unknown">{t("profile.statusUnknown")}</option>
+                    <option value="pregnant">{t("profile.statusPregnant")}</option>
+                    <option value="not_pregnant">{t("profile.statusNotPregnant")}</option>
+                    <option value="postpartum">{t("profile.statusPostpartum")}</option>
+                  </select>
+                </label>
+                <label className="text-sm">
+                  {t("profile.estimatedDueDate")}
+                  <input
+                    className="input mt-1 w-full"
+                    type="date"
+                    value={womensHealth.estimated_due_date ?? ""}
+                    onChange={(event) => setWomensHealth((current) => ({ ...current, estimated_due_date: event.target.value || null }))}
+                  />
+                </label>
+              </div>
+              <label className="block text-sm">
+                {t("profile.pregnancyNotes")}
+                <textarea className="input mt-1 w-full" rows={3} maxLength={2000} value={womensHealth.pregnancy_notes ?? ""} onChange={(event) => setWomensHealth((current) => ({ ...current, pregnancy_notes: event.target.value || null }))} />
+              </label>
+            </fieldset>
+          )}
+
+          {womensHealth.menopause_fertility_enabled && (
+            <fieldset className="space-y-3 rounded-xl border border-line p-4">
+              <legend className="px-1 text-sm font-semibold">{t("profile.menopauseFertility")}</legend>
+              <label className="block text-sm">
+                {t("profile.menopauseNotes")}
+                <textarea className="input mt-1 w-full" rows={3} maxLength={2000} value={womensHealth.menopause_notes ?? ""} onChange={(event) => setWomensHealth((current) => ({ ...current, menopause_notes: event.target.value || null }))} />
+              </label>
+              <label className="block text-sm">
+                {t("profile.fertilityNotes")}
+                <textarea className="input mt-1 w-full" rows={3} maxLength={2000} value={womensHealth.fertility_notes ?? ""} onChange={(event) => setWomensHealth((current) => ({ ...current, fertility_notes: event.target.value || null }))} />
+              </label>
+            </fieldset>
+          )}
+
+          {womensHealth.screening_enabled && (
+            <fieldset className="space-y-3 rounded-xl border border-line p-4">
+              <legend className="px-1 text-sm font-semibold">{t("profile.screening")}</legend>
+              <label className="block text-sm">
+                {t("profile.cervicalScreening")}
+                <textarea className="input mt-1 w-full" rows={3} maxLength={2000} value={womensHealth.cervical_screening_notes ?? ""} onChange={(event) => setWomensHealth((current) => ({ ...current, cervical_screening_notes: event.target.value || null }))} />
+              </label>
+              <label className="block text-sm">
+                {t("profile.breastHealth")}
+                <textarea className="input mt-1 w-full" rows={3} maxLength={2000} value={womensHealth.breast_health_notes ?? ""} onChange={(event) => setWomensHealth((current) => ({ ...current, breast_health_notes: event.target.value || null }))} />
+              </label>
+            </fieldset>
+          )}
+
+          {womensHealthMessage && <p role="status" className="text-sm text-ok">{womensHealthMessage}</p>}
+          {womensHealthError && <p role="alert" className="text-sm text-crit">{womensHealthError}</p>}
+
+          <div className="flex justify-end border-t border-line pt-5">
+            <button type="submit" className="btn btn-primary" disabled={womensHealthSaving}>
+              {womensHealthSaving ? t("profile.saving") : t("profile.saveWomensHealth")}
+            </button>
+          </div>
+        </form>
       </section>
 
       <section className="card p-5 sm:p-7">

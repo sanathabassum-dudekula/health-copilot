@@ -2,7 +2,7 @@ from datetime import date, datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -20,6 +20,65 @@ def _q(db: Session, p: Profile, m, *where):
     return db.scalars(select(m).where(m.profile_id == p.id, *where))
 
 
+class WomensHealthProfile(BaseModel):
+    cycle_tracker_enabled: bool = False
+    pregnancy_tracker_enabled: bool = False
+    menopause_fertility_enabled: bool = False
+    screening_enabled: bool = False
+    last_period_date: date | None = None
+    period_start_dates: list[date] = Field(default_factory=list, max_length=60)
+    cycle_length_days: int | None = Field(default=None, ge=1, le=366)
+    pregnancy_status: Literal["unknown", "pregnant", "not_pregnant", "postpartum"] = "unknown"
+    estimated_due_date: date | None = None
+    pregnancy_notes: str | None = Field(default=None, max_length=2000)
+    menopause_notes: str | None = Field(default=None, max_length=2000)
+    fertility_notes: str | None = Field(default=None, max_length=2000)
+    cervical_screening_notes: str | None = Field(default=None, max_length=2000)
+    breast_health_notes: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("last_period_date")
+    @classmethod
+    def last_period_cannot_be_in_the_future(cls, value: date | None) -> date | None:
+        if value is not None and value > date.today():
+            raise ValueError("last_period_date cannot be in the future.")
+        return value
+
+    @field_validator("period_start_dates")
+    @classmethod
+    def period_dates_must_be_unique_and_not_future(
+        cls, value: list[date]
+    ) -> list[date]:
+        if len(set(value)) != len(value):
+            raise ValueError("period_start_dates must not contain duplicates.")
+        if any(day > date.today() for day in value):
+            raise ValueError("period_start_dates cannot include future dates.")
+        return sorted(value)
+
+    @model_validator(mode="after")
+    def clear_disabled_feature_data(self):
+        if "cycle_tracker_enabled" in self.model_fields_set and not self.cycle_tracker_enabled:
+            self.last_period_date = None
+            self.period_start_dates = []
+            self.cycle_length_days = None
+        elif self.cycle_tracker_enabled:
+            if self.last_period_date and self.last_period_date not in self.period_start_dates:
+                self.period_start_dates.append(self.last_period_date)
+                self.period_start_dates.sort()
+            if self.period_start_dates:
+                self.last_period_date = self.period_start_dates[-1]
+        if "pregnancy_tracker_enabled" in self.model_fields_set and not self.pregnancy_tracker_enabled:
+            self.pregnancy_status = "unknown"
+            self.estimated_due_date = None
+            self.pregnancy_notes = None
+        if "menopause_fertility_enabled" in self.model_fields_set and not self.menopause_fertility_enabled:
+            self.menopause_notes = None
+            self.fertility_notes = None
+        if "screening_enabled" in self.model_fields_set and not self.screening_enabled:
+            self.cervical_screening_notes = None
+            self.breast_health_notes = None
+        return self
+
+
 class ProfileUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     dob: date | None = None
@@ -35,6 +94,7 @@ class ProfileUpdate(BaseModel):
     preferred_language: Literal["en", "hi", "te", "ta"] | None = None
     preferred_voice_language: Literal["en", "hi", "te", "ta"] | None = None
     voice_reminders_enabled: bool | None = None
+    womens_health_profile: WomensHealthProfile | None = None
 
 
 def _age(dob: date | None) -> int | None:
@@ -55,6 +115,9 @@ def _profile_json(p: Profile, db: Session) -> dict:
         "name": p.name, "dob": p.dob, "age": _age(p.dob) if p.dob else p.age, "sex": p.sex, "language": p.user.preferred_language,
         "voice_language": p.user.preferred_voice_language,
         "voice_reminders_enabled": p.user.voice_reminders_enabled,
+        "womens_health_profile": WomensHealthProfile.model_validate(
+            p.womens_health_profile or {}
+        ).model_dump(mode="json"),
         "blood_group": p.blood_group,
         "allergies_text": p.allergies_text,
         "conditions_text": p.conditions_text,
@@ -90,6 +153,10 @@ def put_profile(body: ProfileUpdate, p: Profile = Depends(active_profile), db: S
         "voice_reminders_enabled",
     }
     changes = body.model_dump(exclude_unset=True)
+    changes.pop("womens_health_profile", None)
+    womens_health = body.womens_health_profile
+    if "womens_health_profile" in body.model_fields_set and womens_health is None:
+        raise HTTPException(status_code=422, detail="womens_health_profile cannot be blank.")
     for field in user_fields & changes.keys():
         value = changes[field]
         if value is None:
@@ -100,6 +167,14 @@ def put_profile(body: ProfileUpdate, p: Profile = Depends(active_profile), db: S
         if field == "name":
             value = value.strip()
         setattr(p, field, value)
+    if womens_health is not None:
+        merged_womens_health = WomensHealthProfile.model_validate(
+            p.womens_health_profile or {}
+        ).model_dump(mode="python")
+        merged_womens_health.update(womens_health.model_dump(exclude_unset=True))
+        p.womens_health_profile = WomensHealthProfile.model_validate(
+            merged_womens_health
+        ).model_dump(mode="json")
     db.commit()
     return _profile_json(p, db)
 
