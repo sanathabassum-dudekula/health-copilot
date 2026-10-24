@@ -98,6 +98,7 @@ For test reports, explain the provided values and reference ranges without chang
 Use recent saved vital readings when relevant to the question, stating their value, unit, time, and whether they came from Bluetooth or manual entry. Device and manual readings can be inaccurate or stale; do not diagnose from them, infer an emergency from a reading alone, or reassure someone based only on a seemingly normal reading.
 When asked to prepare for a clinician visit, suggest concise questions grounded in the available records and clearly identify unknown details.
 For reminders, use only dates and schedules the person has verified; never infer medication doses or schedules from incomplete records.
+For optional women's-health questions, use only the enabled topics and explicitly user-entered facts in the supplied profile context. Menstrual-cycle dates are rough estimates based on the stated usual length or recorded history, not predictions; a late estimate does not establish pregnancy or illness. If pregnancy is possible, suggest an at-home pregnancy test according to its instructions and clinician follow-up for a positive, unclear, or concerning result; never recommend medicines, supplements, hormones, or ways to induce a period. General comfort measures such as rest, fluids, and a warm pack may be mentioned as optional, not treatment. Recommend medical evaluation for a missed period lasting about three months, a persistent change, or other concerns. For very heavy bleeding, fainting, severe pelvic/abdominal pain, or bleeding/pain during a known or possible pregnancy, put urgent medical care first. For pregnancy/postpartum, due dates are estimates; do not calculate or assert gestational age as a clinical fact, and direct pregnancy-specific care questions to the person's clinician. For menopause/fertility, explain general possibilities without diagnosing or claiming fertility from cycle dates. For screening, do not infer personal eligibility or schedule from incomplete profile data; recommend checking with a clinician/local guidelines. Treat all saved notes as user-entered and potentially outdated.
 For photos or scans such as X-rays, describe only general visible information and image limitations.
 Do not diagnose fractures or other conditions, rule out serious injury, or replace a radiologist's report;
 recommend a qualified clinician's interpretation, and urgent care for severe pain or concerning symptoms.
@@ -186,8 +187,78 @@ class AssistantReminderProposal(BaseModel):
     category: Literal["appointment", "follow_up", "other"] | None = None
 
 
-def _health_context(profile: Profile, db: Session) -> dict:
-    today = date.today()
+def _womens_health_context(profile: Profile, today: date) -> dict | None:
+    saved = profile.womens_health_profile or {}
+    context: dict = {}
+    if saved.get("cycle_tracker_enabled"):
+        dates: list[date] = []
+        for value in saved.get("period_start_dates", []):
+            if not isinstance(value, str):
+                continue
+            try:
+                dates.append(date.fromisoformat(value))
+            except ValueError:
+                continue
+        dates = sorted(set(dates))
+        last_period = dates[-1] if dates else None
+        intervals = [
+            (later - earlier).days
+            for earlier, later in zip(dates, dates[1:])
+        ][-6:]
+        typical_cycle = saved.get("cycle_length_days")
+        estimate_basis = "user_entered_usual_length"
+        if not typical_cycle and len(intervals) >= 2:
+            typical_cycle = round(sum(intervals) / len(intervals))
+            estimate_basis = "average_of_recorded_cycles"
+        estimate = (
+            last_period + timedelta(days=typical_cycle)
+            if last_period and type(typical_cycle) is int and typical_cycle > 0
+            else None
+        )
+        context["cycle_tracking"] = {
+            "recorded_period_start_dates": [item.isoformat() for item in dates[-12:]],
+            "user_entered_usual_cycle_length_days": saved.get("cycle_length_days"),
+            "recent_recorded_cycle_intervals_days": intervals,
+            "approximate_next_period_date": estimate.isoformat() if estimate else None,
+            "estimate_basis": estimate_basis if estimate else None,
+            "days_past_approximate_date": max((today - estimate).days, 0) if estimate else None,
+            "estimate_is_at_least_7_days_past": bool(
+                estimate and (today - estimate).days >= 7
+            ),
+            "safety_note": (
+                "A cycle estimate is not a prediction, pregnancy test, or diagnosis. "
+                "Dates may vary and missing or old entries make it less useful."
+            ),
+        }
+    if saved.get("pregnancy_tracker_enabled"):
+        context["pregnancy_postpartum_tracking"] = {
+            "user_reported_status": saved.get("pregnancy_status", "unknown"),
+            "user_entered_estimated_due_date": saved.get("estimated_due_date"),
+            "user_entered_notes": str(saved.get("pregnancy_notes") or "")[:1200],
+        }
+    if saved.get("menopause_fertility_enabled"):
+        context["menopause_fertility_tracking"] = {
+            "user_entered_menopause_notes": str(saved.get("menopause_notes") or "")[:1200],
+            "user_entered_fertility_notes": str(saved.get("fertility_notes") or "")[:1200],
+        }
+    if saved.get("screening_enabled"):
+        context["screening_tracking"] = {
+            "user_entered_cervical_screening_notes": str(
+                saved.get("cervical_screening_notes") or ""
+            )[:1200],
+            "user_entered_breast_health_notes": str(
+                saved.get("breast_health_notes") or ""
+            )[:1200],
+        }
+    return context or None
+
+
+def _health_context(
+    profile: Profile,
+    db: Session,
+    today: date | None = None,
+) -> dict:
+    today = today or date.today()
     allergies = db.scalars(
         select(Allergy).where(
             Allergy.profile_id == profile.id,
@@ -290,6 +361,7 @@ def _health_context(profile: Profile, db: Session) -> dict:
             for item in recent_vitals
         ],
         "previous_records_reported_by_user": (profile.previous_records or "")[:1000],
+        "optional_womens_health_tracking": _womens_health_context(profile, today),
     }
 
 
@@ -564,7 +636,11 @@ def chat(
     db: Session = Depends(get_db),
 ):
     profile = _assert_active_profile(profile, body.profile_oid)
-    health_context = _health_context(profile, db)
+    health_context = _health_context(
+        profile,
+        db,
+        today=body.local_now.date() if body.local_now else None,
+    )
     profile_id = profile.id
     document_context = None
     document = None

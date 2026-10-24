@@ -216,3 +216,91 @@ def test_chat_includes_and_saves_critical_report_guidance(monkeypatch):
     assert '"recent_vital_readings":' in system_context
     assert "Synthetic thermometer" in system_context
     assert '"source": "bluetooth"' in system_context
+
+
+def test_womens_health_context_is_scoped_to_enabled_topics_and_marks_estimates(
+    monkeypatch,
+):
+    monkeypatch.setattr(assistant, "chat_model", lambda *_: object())
+    captured = {"systems": []}
+
+    def respond(_model, messages):
+        captured["systems"].append(messages[0].content)
+        return AIMessage(content="I can share general information.")
+
+    monkeypatch.setattr(assistant, "invoke_with_retry", respond)
+    visit_id = str(uuid.uuid4())
+
+    with TestClient(app, headers={"X-Visit": visit_id}) as client:
+        saved = client.put(
+            "/profile",
+            json={
+                "womens_health_profile": {
+                    "cycle_tracker_enabled": True,
+                    "period_start_dates": ["2026-08-01", "2026-09-01"],
+                    "cycle_length_days": 28,
+                    "pregnancy_tracker_enabled": True,
+                    "pregnancy_status": "unknown",
+                    "pregnancy_notes": "User entered pregnancy note",
+                    "menopause_fertility_enabled": True,
+                    "menopause_notes": "User entered menopause note",
+                    "fertility_notes": "User entered fertility note",
+                    "screening_enabled": True,
+                    "cervical_screening_notes": "User entered screening note",
+                    "breast_health_notes": "User entered breast health note",
+                }
+            },
+        )
+        assert saved.status_code == 200, saved.text
+
+        response = client.post(
+            "/assistant/chat",
+            json={
+                "message": "My period has not arrived yet. What can I do?",
+                "language": "en",
+                "local_now": "2026-10-10T09:00:00+00:00",
+            },
+        )
+        disabled = client.put(
+            "/profile",
+            json={
+                "womens_health_profile": {
+                    "cycle_tracker_enabled": False,
+                    "pregnancy_tracker_enabled": False,
+                    "menopause_fertility_enabled": False,
+                    "screening_enabled": False,
+                    "pregnancy_notes": "User entered pregnancy note",
+                    "menopause_notes": "User entered menopause note",
+                    "fertility_notes": "User entered fertility note",
+                    "cervical_screening_notes": "User entered screening note",
+                    "breast_health_notes": "User entered breast health note",
+                }
+            },
+        )
+        assert disabled.status_code == 200, disabled.text
+        disabled_response = client.post(
+            "/assistant/chat",
+            json={
+                "message": "What can you tell me?",
+                "language": "en",
+                "local_now": "2026-10-10T09:00:00+00:00",
+            },
+        )
+
+    assert response.status_code == 200, response.text
+    assert disabled_response.status_code == 200, disabled_response.text
+    system_context = captured["systems"][0]
+    assert '"approximate_next_period_date": "2026-09-29"' in system_context
+    assert '"days_past_approximate_date": 11' in system_context
+    assert '"estimate_is_at_least_7_days_past": true' in system_context
+    assert "User entered pregnancy note" in system_context
+    assert "User entered menopause note" in system_context
+    assert "User entered fertility note" in system_context
+    assert "User entered screening note" in system_context
+    assert "late estimate does not establish pregnancy or illness" in system_context
+    assert "Never recommend starting, stopping, or changing a medicine or dose" in system_context
+    disabled_context = captured["systems"][1]
+    assert '"optional_womens_health_tracking": null' in disabled_context
+    assert "User entered pregnancy note" not in disabled_context
+    assert "User entered menopause note" not in disabled_context
+    assert "User entered screening note" not in disabled_context

@@ -28,6 +28,13 @@ const EMPTY_WOMENS_HEALTH_PROFILE: WomensHealthProfile = {
   breast_health_notes: null,
 };
 
+function localDateInputValue(value = new Date()) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function ProfilePage() {
   const { t, i18n } = useTranslation();
   const { profile, reload } = useProfile();
@@ -44,6 +51,7 @@ export default function ProfilePage() {
   const [familyReminders, setFamilyReminders] = useState(false);
   const [womensHealth, setWomensHealth] = useState<WomensHealthProfile>(EMPTY_WOMENS_HEALTH_PROFILE);
   const [periodEntryDate, setPeriodEntryDate] = useState("");
+  const [periodReminderSaving, setPeriodReminderSaving] = useState(false);
   const [womensHealthSaving, setWomensHealthSaving] = useState(false);
   const [womensHealthMessage, setWomensHealthMessage] = useState("");
   const [womensHealthError, setWomensHealthError] = useState("");
@@ -68,7 +76,7 @@ export default function ProfilePage() {
       ...EMPTY_WOMENS_HEALTH_PROFILE,
       ...profile.womens_health_profile,
     });
-    setPeriodEntryDate(new Date().toISOString().slice(0, 10));
+    setPeriodEntryDate(localDateInputValue());
   }, [profile]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -193,6 +201,41 @@ export default function ProfilePage() {
     setWomensHealthError("");
   }
 
+  async function createPeriodCheckInReminder() {
+    if (!nextPeriodEstimate) return;
+    setWomensHealthError("");
+    setWomensHealthMessage("");
+    setPeriodReminderSaving(true);
+    try {
+      await api.updateProfile({ womens_health_profile: womensHealth });
+    } catch {
+      setWomensHealthError(t("profile.error"));
+      setPeriodReminderSaving(false);
+      return;
+    }
+    try {
+      const dueAt = new Date(`${nextPeriodEstimate.date}T09:00:00`);
+      dueAt.setDate(dueAt.getDate() + 7);
+      if (dueAt.getTime() <= Date.now()) {
+        dueAt.setTime(Date.now());
+        dueAt.setDate(dueAt.getDate() + 1);
+        dueAt.setHours(9, 0, 0, 0);
+      }
+      await api.createReminder({
+        title: t("profile.periodReminderTitle"),
+        details: t("profile.periodReminderDetails"),
+        due_at: dueAt.toISOString(),
+        category: "wellness",
+        recurrence: "none",
+      });
+      setWomensHealthMessage(t("profile.periodReminderSaved"));
+    } catch {
+      setWomensHealthError(t("profile.periodReminderError"));
+    } finally {
+      setPeriodReminderSaving(false);
+    }
+  }
+
   const countCards = [
     { label: t("profile.conditions"), count: profile?.conditions?.length ?? 0 },
     { label: t("profile.medications"), count: profile?.current_medicines?.length ?? 0 },
@@ -204,9 +247,44 @@ export default function ProfilePage() {
     const previous = Date.parse(`${recentPeriodDates[index]}T00:00:00Z`);
     return Math.round((current - previous) / 86_400_000);
   });
-  const averageRecordedCycle = cycleIntervals.length
+  const averageRecordedCycle = cycleIntervals.length >= 2
     ? Math.round(cycleIntervals.reduce((total, interval) => total + interval, 0) / cycleIntervals.length)
     : null;
+  const estimateCycleLength = womensHealth.cycle_length_days ?? averageRecordedCycle;
+  const latestPeriodDate = womensHealth.period_start_dates.at(-1) ?? null;
+  const estimatePeriodDate = latestPeriodDate && estimateCycleLength
+    ? new Date(Date.parse(`${latestPeriodDate}T00:00:00Z`) + estimateCycleLength * 86_400_000)
+        .toISOString()
+        .slice(0, 10)
+    : null;
+  const estimateRange = averageRecordedCycle !== null && cycleIntervals.length >= 2 && latestPeriodDate
+    ? {
+        earliest: new Date(Date.parse(`${latestPeriodDate}T00:00:00Z`) + Math.min(...cycleIntervals) * 86_400_000).toISOString().slice(0, 10),
+        latest: new Date(Date.parse(`${latestPeriodDate}T00:00:00Z`) + Math.max(...cycleIntervals) * 86_400_000).toISOString().slice(0, 10),
+      }
+    : null;
+  const localToday = new Date();
+  const todayDateOnly = new Date(Date.UTC(
+    localToday.getFullYear(),
+    localToday.getMonth(),
+    localToday.getDate(),
+  ));
+  const nextPeriodEstimate = estimatePeriodDate
+    ? {
+        date: estimatePeriodDate,
+        daysPast: Math.max(
+          0,
+          Math.floor(
+            (todayDateOnly.getTime() - Date.parse(`${estimatePeriodDate}T00:00:00Z`))
+            / 86_400_000,
+          ),
+        ),
+      }
+    : null;
+  const formatPeriodDate = (value: string) => new Intl.DateTimeFormat(i18n.language, {
+    dateStyle: "medium",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T00:00:00Z`));
 
   return (
     <main className="mx-auto w-full max-w-5xl space-y-6">
@@ -347,12 +425,33 @@ export default function ProfilePage() {
                   <input
                     className="input mt-1 w-full"
                     type="date"
-                    max={new Date().toISOString().slice(0, 10)}
+                    max={localDateInputValue()}
                     value={periodEntryDate}
                     onChange={(event) => setPeriodEntryDate(event.target.value)}
                   />
                   <button type="button" className="btn btn-ghost mt-2" onClick={addPeriodStartDate} disabled={!periodEntryDate || womensHealth.period_start_dates.includes(periodEntryDate) || womensHealth.period_start_dates.length >= 60}>
                     {t("profile.addPeriodStartDate")}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-soft mt-2 sm:ml-2"
+                    onClick={() => {
+                      const today = localDateInputValue();
+                      setPeriodEntryDate(today);
+                      if (!womensHealth.period_start_dates.includes(today) && womensHealth.period_start_dates.length < 60) {
+                        const periodDates = [...womensHealth.period_start_dates, today].sort();
+                        setWomensHealth((current) => ({
+                          ...current,
+                          period_start_dates: periodDates,
+                          last_period_date: periodDates[periodDates.length - 1],
+                        }));
+                        setWomensHealthMessage("");
+                        setWomensHealthError("");
+                      }
+                    }}
+                    disabled={womensHealth.period_start_dates.includes(localDateInputValue()) || womensHealth.period_start_dates.length >= 60}
+                  >
+                    {t("profile.recordPeriodToday")}
                   </button>
                 </label>
                 <label className="text-sm">
@@ -367,6 +466,50 @@ export default function ProfilePage() {
                   />
                 </label>
               </div>
+              {nextPeriodEstimate && (
+                <div className="rounded-xl border border-rose-200 bg-white/80 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-rose-800">
+                    {t("profile.nextPeriodEstimate")}
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-ink">
+                    {estimateRange
+                      ? t("profile.estimatedPeriodWindow", {
+                          start: formatPeriodDate(estimateRange.earliest),
+                          end: formatPeriodDate(estimateRange.latest),
+                        })
+                      : formatPeriodDate(nextPeriodEstimate.date)}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-muted">
+                    {t("profile.periodEstimateBasis", { days: estimateCycleLength })}
+                  </p>
+                  {nextPeriodEstimate.daysPast >= 7 && (
+                    <>
+                      <p role="status" className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm leading-5 text-amber-950">
+                        {t("profile.periodEstimatePassed", { days: nextPeriodEstimate.daysPast })}
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-muted">{t("profile.periodLateGuidance")}</p>
+                    </>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-soft"
+                      onClick={() => void createPeriodCheckInReminder()}
+                      disabled={periodReminderSaving || !womensHealth.cycle_tracker_enabled}
+                    >
+                      <Icon name="bell" className="h-4 w-4" />
+                      {periodReminderSaving ? t("profile.savingPeriodReminder") : t("profile.periodReminder")}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {!nextPeriodEstimate && (
+                <p className="rounded-xl bg-white/80 px-4 py-3 text-sm leading-5 text-muted">
+                  {womensHealth.period_start_dates.length
+                    ? t("profile.periodEstimateNeedMore")
+                    : t("profile.periodEstimateStart")}
+                </p>
+              )}
               {womensHealth.period_start_dates.length > 0 && (
                 <div>
                   <h3 className="text-sm font-medium">{t("profile.periodHistory")}</h3>
@@ -388,6 +531,10 @@ export default function ProfilePage() {
                 </div>
               )}
               <p className="text-xs text-muted">{t("profile.cycleTrackerDisclaimer")}</p>
+              <Link href="/assistant?ask=women-cycle" className="btn btn-ghost">
+                <Icon name="message" className="h-4 w-4" />
+                {t("profile.askLumi")}
+              </Link>
             </fieldset>
           )}
 
@@ -422,6 +569,11 @@ export default function ProfilePage() {
                 {t("profile.pregnancyNotes")}
                 <textarea className="input mt-1 w-full" rows={3} maxLength={2000} value={womensHealth.pregnancy_notes ?? ""} onChange={(event) => setWomensHealth((current) => ({ ...current, pregnancy_notes: event.target.value || null }))} />
               </label>
+              <p className="text-xs leading-5 text-muted">{t("profile.pregnancyEstimateNote")}</p>
+              <Link href="/assistant?ask=women-pregnancy" className="btn btn-ghost">
+                <Icon name="message" className="h-4 w-4" />
+                {t("profile.askLumi")}
+              </Link>
             </fieldset>
           )}
 
@@ -436,6 +588,11 @@ export default function ProfilePage() {
                 {t("profile.fertilityNotes")}
                 <textarea className="input mt-1 w-full" rows={3} maxLength={2000} value={womensHealth.fertility_notes ?? ""} onChange={(event) => setWomensHealth((current) => ({ ...current, fertility_notes: event.target.value || null }))} />
               </label>
+              <p className="text-xs leading-5 text-muted">{t("profile.menopauseFertilityNote")}</p>
+              <Link href="/assistant?ask=women-menopause" className="btn btn-ghost">
+                <Icon name="message" className="h-4 w-4" />
+                {t("profile.askLumi")}
+              </Link>
             </fieldset>
           )}
 
@@ -450,6 +607,11 @@ export default function ProfilePage() {
                 {t("profile.breastHealth")}
                 <textarea className="input mt-1 w-full" rows={3} maxLength={2000} value={womensHealth.breast_health_notes ?? ""} onChange={(event) => setWomensHealth((current) => ({ ...current, breast_health_notes: event.target.value || null }))} />
               </label>
+              <p className="text-xs leading-5 text-muted">{t("profile.screeningNote")}</p>
+              <Link href="/assistant?ask=women-screening" className="btn btn-ghost">
+                <Icon name="message" className="h-4 w-4" />
+                {t("profile.askLumi")}
+              </Link>
             </fieldset>
           )}
 

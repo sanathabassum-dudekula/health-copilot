@@ -107,8 +107,16 @@ export default function AssistantPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("ask") !== "vitals") return;
-    setDraft(t("assistant.vitalsReviewPrompt"));
+    const prompts: Record<string, string> = {
+      vitals: t("assistant.vitalsReviewPrompt"),
+      "women-cycle": t("assistant.womensCyclePrompt"),
+      "women-pregnancy": t("assistant.womensPregnancyPrompt"),
+      "women-menopause": t("assistant.womensMenopausePrompt"),
+      "women-screening": t("assistant.womensScreeningPrompt"),
+    };
+    const prompt = prompts[params.get("ask") ?? ""];
+    if (!prompt) return;
+    setDraft(prompt);
     params.delete("ask");
     const query = params.toString();
     window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
