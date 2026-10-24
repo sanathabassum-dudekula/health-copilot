@@ -11,6 +11,7 @@
     "profiles": "Profiles",
     "familyAccess": "Family & Access",
     "emergencyCard": "Emergency card",
+    "womensHealth": "Women's health",
     "devices": "Vitals & devices",
     "abha": "ABHA",
     "profile": "Profile"
@@ -284,8 +285,8 @@
     "familyRemindersDescription": "When enabled, your linked family members who also opt in can view your pending reminders in CuraMind and receive generic due alerts. Reminder titles and notes are only visible inside the app.",
     "womensHealthTitle": "Women's health",
     "womensHealthHeading": "Your body, your health journey",
-    "womensHealthDescription": "Choose any topics you want to use. These options are available to everyone, regardless of gender. Turning a topic off removes its saved profile details.",
-    "womensHealthPrivacy": "Your entries stay in this health profile. These tools support personal tracking and do not predict, diagnose, or replace care from a clinician.",
+    "womensHealthDescription": "Choose any topics you want to use. These options are available to everyone, regardless of gender. Turning a topic off removes its saved details.",
+    "womensHealthPrivacy": "Your entries stay in your health record. These tools support personal tracking and do not predict, diagnose, or replace care from a clinician.",
     "cycleTracker": "Cycle tracker",
     "cycleTrackerDescription": "Log period starts and compare an approximate next date with your own recent history.",
     "pregnancyTracker": "Pregnancy and postpartum",
