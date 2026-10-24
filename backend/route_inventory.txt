@@ -1,0 +1,87 @@
+﻿C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\abha.py : Line 11 : from ..auth import current_profile
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\abha.py : Line 32 : def link(body: Link, p: Profile = Depends(current_profile), db: Session = Depends(get_db)):
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\abha.py : Line 46 : def verify(body: Verify, p: Profile = Depends(current_profile), db: Session = Depends(get_db)):
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\abha.py : Line 57 : def import_records(p: Profile = Depends(current_profile), db: Session = Depends(get_db)):
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 17 : from ..access import profile_for_owner
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 18 : from ..auth import current_profile
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 112 : profile_oid: str | None = Field(default=None, max_length=40)
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 380 : profile_oid: str | None = None,
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 381 : profile: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 384 : profile = profile_for_owner(profile, db, profile_oid)
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 398 : profile_oid: str | None = None,
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 399 : profile: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 402 : profile = profile_for_owner(profile, db, profile_oid)
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 416 : profile_oid: str | None = None,
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 417 : profile: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 420 : profile = profile_for_owner(profile, db, profile_oid)
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 429 : profile_oid: str | None = None,
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 430 : profile: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 433 : profile = profile_for_owner(profile, db, profile_oid)
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 444 : profile_oid: str | None = None,
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 445 : profile: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 448 : profile = profile_for_owner(profile, db, profile_oid)
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 463 : profile: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\assistant.py : Line 466 : profile = profile_for_owner(profile, db, body.profile_oid)
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\documents.py : Line 15 : from ..access import owns_or_links_profile, profile_for_owner
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\documents.py : Line 16 : from ..auth import current_profile
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\documents.py : Line 99 : profile_oid: str | None = None,
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\documents.py : Line 100 : p: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\documents.py : Line 103 : target = profile_for_owner(p, db, profile_oid)
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\documents.py : Line 180 : profile_oid: str | None = None,
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\documents.py : Line 181 : p: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\documents.py : Line 184 : target = profile_for_owner(p, db, profile_oid)
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\documents.py : Line 196 : p: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\documents.py : Line 220 : p: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\documents.py : Line 287 : p: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\documents.py : Line 321 : p: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\family.py : Line 10 : from ..auth import current_profile
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\family.py : Line 111 : owner: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\family.py : Line 136 : owner: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\family.py : Line 195 : owner: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\family.py : Line 206 : owner: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\family.py : Line 245 : owner: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\insights.py : Line 8 : from ..access import confirmed_document_ids, profile_for_owner
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\insights.py : Line 9 : from ..auth import current_profile
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\insights.py : Line 26 : profile_oid: str | None = None,
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\insights.py : Line 27 : owner: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\insights.py : Line 30 : profile = profile_for_owner(owner, db, profile_oid)
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\profile.py : Line 10 : from ..auth import current_profile, delete_profile_data
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\profile.py : Line 151 : p: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\profile.py : Line 160 : p: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\profile.py : Line 205 : p: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\profile.py : Line 215 : p: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\profile.py : Line 394 : def fhir_export(p: Profile = Depends(current_profile)):
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 11 : from ..access import confirmed_document_ids, profile_for_owner
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 12 : from ..auth import current_profile
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 79 : "profile_oid": reminder.profile.oid,
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 96 : profile_oid: str | None,
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 99 : target = profile_for_owner(owner, db, profile_oid)
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 156 : profile_oid: str | None = None,
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 157 : owner: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 160 : target = profile_for_owner(owner, db, profile_oid)
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 167 : profile_oid: str | None = None,
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 168 : owner: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 171 : target = profile_for_owner(owner, db, profile_oid)
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 214 : profile_oid: str | None = None,
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 216 : owner: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 219 : target = profile_for_owner(owner, db, profile_oid)
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 238 : profile_oid: str | None = None,
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 239 : owner: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 242 : target = profile_for_owner(owner, db, profile_oid)
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 278 : profile_oid: str | None = None,
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 279 : owner: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 282 : reminder = _owned_reminder(reminder_id, owner, profile_oid, db)
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 303 : profile_oid: str | None = None,
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 304 : owner: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 307 : reminder = _owned_reminder(reminder_id, owner, profile_oid, db)
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 325 : profile_oid: str | None = None,
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 326 : owner: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\reminders.py : Line 329 : reminder = _owned_reminder(reminder_id, owner, profile_oid, db)
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\vitals.py : Line 9 : from ..access import profile_for_owner
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\vitals.py : Line 10 : from ..auth import current_profile
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\vitals.py : Line 56 : profile_oid: str | None = None,
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\vitals.py : Line 58 : owner: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\vitals.py : Line 61 : target = profile_for_owner(owner, db, profile_oid)
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\vitals.py : Line 74 : profile_oid: str | None = None,
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\vitals.py : Line 75 : owner: Profile = Depends(current_profile),
+C:\trinexa_updated\HEALTH COPILOT\backend\app\routers\vitals.py : Line 78 : target = profile_for_owner(owner, db, profile_oid)

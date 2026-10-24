@@ -5,6 +5,8 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from ..models import AuthSession
+from ..auth import token_digest
 
 from ..auth import (
     SESSION_COOKIE,
@@ -116,23 +118,27 @@ def me(
     return {"user": public_user(user)}
 
 
+
 @router.post("/logout")
 def logout(
     request: Request,
-    response: Response,
     db: Session = Depends(get_db),
 ):
     token = request.cookies.get(SESSION_COOKIE)
+
     if token:
         session = db.scalar(
-            select(__import__("app.models", fromlist=["AuthSession"]).AuthSession).where(
-                __import__("app.models", fromlist=["AuthSession"]).AuthSession.token_hash
-                == __import__("hashlib").sha256(token.encode("utf-8")).hexdigest()
+            select(AuthSession).where(
+                AuthSession.token_hash == token_digest(token)
             )
         )
+
         if session:
             db.delete(session)
             db.commit()
 
+    response = JSONResponse(
+        content={"message": "Logged out successfully"}
+    )
     clear_session_cookie(response)
-    return {"message": "Signed out."}
+    return response

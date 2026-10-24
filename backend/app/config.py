@@ -10,7 +10,9 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    DATABASE_URL: str = "sqlite:///dev.db"
+    DATABASE_URL: str = (
+        f"sqlite:///{(Path(__file__).resolve().parents[1] / 'dev.db').as_posix()}"
+    )
     VISION_MODEL: str = "google_genai:gemini-3.1-flash-lite"
     TEXT_MODEL: str = "google_genai:gemini-3.1-flash-lite"
     LLM_API_KEY: str = ""

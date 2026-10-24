@@ -1,4 +1,4 @@
-
+﻿
 from datetime import date, datetime
 
 from sqlalchemy import (
@@ -25,6 +25,8 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     preferred_language: Mapped[str] = mapped_column(String, default="en")
+    email: Mapped[str | None] = mapped_column(String(320), unique=True, index=True, nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(String(256), nullable=True)
 
     profile: Mapped["Profile"] = relationship(
         back_populates="user", cascade=CASCADE, uselist=False
@@ -60,13 +62,33 @@ class Profile(Base):
     )
     oid: Mapped[str | None] = mapped_column(String(40), index=True)
 
+    # Basic personal information
     name: Mapped[str] = mapped_column(String)
-    dob: Mapped[date | None] = mapped_column(Date)
-    sex: Mapped[str | None] = mapped_column(String)
+    dob: Mapped[date | None] = mapped_column(Date, nullable=True)
+    sex: Mapped[str | None] = mapped_column(String, nullable=True)
+    age: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    blood_group: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
-    abha_number: Mapped[str | None] = mapped_column(String)
-    abha_address: Mapped[str | None] = mapped_column(String)
-    abha_linked_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Additional information entered in the profile form
+    allergies_text: Mapped[str | None] = mapped_column(String, nullable=True)
+    conditions_text: Mapped[str | None] = mapped_column(String, nullable=True)
+    medicines_text: Mapped[str | None] = mapped_column(String, nullable=True)
+    previous_records: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # Emergency contact
+    emergency_contact_name: Mapped[str | None] = mapped_column(
+        String(120), nullable=True
+    )
+    emergency_contact_phone: Mapped[str | None] = mapped_column(
+        String(40), nullable=True
+    )
+
+    # ABHA information
+    abha_number: Mapped[str | None] = mapped_column(String, nullable=True)
+    abha_address: Mapped[str | None] = mapped_column(String, nullable=True)
+    abha_linked_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
 
     user: Mapped["User"] = relationship(back_populates="profile")
     documents: Mapped[list["Document"]] = relationship(
@@ -78,7 +100,8 @@ class FamilyLink(Base):
     __tablename__ = "family_links"
     __table_args__ = (
         UniqueConstraint(
-            "owner_user_id", "member_user_id",
+            "owner_user_id",
+            "member_user_id",
             name="uq_family_owner_member",
         ),
         CheckConstraint(
@@ -105,19 +128,19 @@ class Document(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     profile_id: Mapped[int] = mapped_column(ForeignKey("profiles.id"))
 
-    file_path: Mapped[str | None] = mapped_column(String)
-    mime: Mapped[str | None] = mapped_column(String)
-    doc_type: Mapped[str | None] = mapped_column(String)
-    doc_date: Mapped[date | None] = mapped_column(Date)
-    facility: Mapped[str | None] = mapped_column(String)
-    practitioner: Mapped[str | None] = mapped_column(String)
-    admission_date: Mapped[date | None] = mapped_column(Date)
-    discharge_date: Mapped[date | None] = mapped_column(Date)
+    file_path: Mapped[str | None] = mapped_column(String, nullable=True)
+    mime: Mapped[str | None] = mapped_column(String, nullable=True)
+    doc_type: Mapped[str | None] = mapped_column(String, nullable=True)
+    doc_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    facility: Mapped[str | None] = mapped_column(String, nullable=True)
+    practitioner: Mapped[str | None] = mapped_column(String, nullable=True)
+    admission_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    discharge_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     status: Mapped[str] = mapped_column(String, default="processing")
-    extraction: Mapped[dict | None] = mapped_column(JSON)
-    summary: Mapped[dict | None] = mapped_column(JSON)
-    summary_i18n: Mapped[dict | None] = mapped_column(JSON)
+    extraction: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    summary_i18n: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     source: Mapped[str] = mapped_column(String, default="upload")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now()
@@ -144,17 +167,17 @@ class Observation(Base):
     profile_id: Mapped[int] = mapped_column(ForeignKey("profiles.id"))
     document_id: Mapped[int] = mapped_column(ForeignKey("documents.id"))
 
-    loinc_code: Mapped[str | None] = mapped_column(String)
+    loinc_code: Mapped[str | None] = mapped_column(String, nullable=True)
     display_name: Mapped[str] = mapped_column(String)
-    value_num: Mapped[float | None] = mapped_column(Float)
-    value_text: Mapped[str | None] = mapped_column(String)
-    unit: Mapped[str | None] = mapped_column(String)
-    ref_low: Mapped[float | None] = mapped_column(Float)
-    ref_high: Mapped[float | None] = mapped_column(Float)
-    interpretation: Mapped[str | None] = mapped_column(String)
-    effective_at: Mapped[date | None] = mapped_column(Date)
-    confidence: Mapped[float | None] = mapped_column(Float)
-    note: Mapped[str | None] = mapped_column(String)
+    value_num: Mapped[float | None] = mapped_column(Float, nullable=True)
+    value_text: Mapped[str | None] = mapped_column(String, nullable=True)
+    unit: Mapped[str | None] = mapped_column(String, nullable=True)
+    ref_low: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ref_high: Mapped[float | None] = mapped_column(Float, nullable=True)
+    interpretation: Mapped[str | None] = mapped_column(String, nullable=True)
+    effective_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    note: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class Medication(Base):
@@ -165,17 +188,17 @@ class Medication(Base):
     document_id: Mapped[int] = mapped_column(ForeignKey("documents.id"))
 
     brand_name: Mapped[str] = mapped_column(String)
-    salt: Mapped[str | None] = mapped_column(String)
-    strength: Mapped[str | None] = mapped_column(String)
-    form: Mapped[str | None] = mapped_column(String)
-    dose_pattern: Mapped[str | None] = mapped_column(String)
-    per_day: Mapped[int | None] = mapped_column(Integer)
-    timing: Mapped[str | None] = mapped_column(String)
-    duration_days: Mapped[int | None] = mapped_column(Integer)
-    start_date: Mapped[date | None] = mapped_column(Date)
-    end_date: Mapped[date | None] = mapped_column(Date)
-    prescriber: Mapped[str | None] = mapped_column(String)
-    confidence: Mapped[float | None] = mapped_column(Float)
+    salt: Mapped[str | None] = mapped_column(String, nullable=True)
+    strength: Mapped[str | None] = mapped_column(String, nullable=True)
+    form: Mapped[str | None] = mapped_column(String, nullable=True)
+    dose_pattern: Mapped[str | None] = mapped_column(String, nullable=True)
+    per_day: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    timing: Mapped[str | None] = mapped_column(String, nullable=True)
+    duration_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    prescriber: Mapped[str | None] = mapped_column(String, nullable=True)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class Condition(Base):
@@ -186,7 +209,7 @@ class Condition(Base):
     document_id: Mapped[int] = mapped_column(ForeignKey("documents.id"))
 
     name: Mapped[str] = mapped_column(String)
-    recorded_at: Mapped[date | None] = mapped_column(Date)
+    recorded_at: Mapped[date | None] = mapped_column(Date, nullable=True)
 
 
 class Allergy(Base):
@@ -197,4 +220,24 @@ class Allergy(Base):
     document_id: Mapped[int] = mapped_column(ForeignKey("documents.id"))
 
     substance: Mapped[str] = mapped_column(String)
-    reaction: Mapped[str | None] = mapped_column(String)
+    reaction: Mapped[str | None] = mapped_column(String, nullable=True)
+class AuthSession(Base):
+    __tablename__ = "auth_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    token_hash: Mapped[str] = mapped_column(
+        String(64), unique=True, index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    active_profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("profiles.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now()
+    )
+

@@ -1,30 +1,45 @@
-﻿import logging
+﻿
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-
 from sqlalchemy import update
 
 from .db import SessionLocal, init_db
 from .models import Document
-from .routers import abha, documents, profile, family
+from .routers import abha, auth, documents, profile, family
 
-
-logging.basicConfig(level=logging.INFO)  # show ingestion timings next to uvicorn's log
+logging.basicConfig(level=logging.INFO)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()  # create_all, no Alembic for the prototype
-    with SessionLocal() as db:  # background tasks die with the server; don't leave documents 'processing' forever
-        db.execute(update(Document).where(Document.status == "processing")
-                   .values(status="failed", extraction={"_error": "interrupted by server restart"}))
-        db.execute(update(Document).where(Document.status == "summarizing").values(status="done"))  # data is saved
+    init_db()
+    with SessionLocal() as db:
+        db.execute(
+            update(Document)
+            .where(Document.status == "processing")
+            .values(
+                status="failed",
+                extraction={"_error": "interrupted by server restart"},
+            )
+        )
+        db.execute(
+            update(Document)
+            .where(Document.status == "summarizing")
+            .values(status="done")
+        )
         db.commit()
     yield
 
 
 app = FastAPI(title="Health Copilot", lifespan=lifespan)
-for r in (documents.router, profile.router, abha.router, family.router):
-    app.include_router(r)
 
+for r in (
+    auth.router,
+    documents.router,
+    profile.router,
+    abha.router,
+    family.router,
+):
+    app.include_router(r)
