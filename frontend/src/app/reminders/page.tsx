@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   api,
+  ApiRequestError,
   ConfirmedPrescriptionSchedule,
   familyApi,
   FamilyMember,
@@ -45,7 +46,10 @@ export default function RemindersPage() {
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [routineSuggestions, setRoutineSuggestions] = useState<RoutineSuggestion[]>([]);
+  const [routineBasis, setRoutineBasis] = useState<"confirmed_prescriptions" | "general">("general");
   const [confirmedPrescriptions, setConfirmedPrescriptions] = useState<ConfirmedPrescriptionSchedule[]>([]);
+  const [familyReminders, setFamilyReminders] = useState<Awaited<ReturnType<typeof api.familyReminders>>>([]);
+  const [showFamilyReminders, setShowFamilyReminders] = useState(false);
   const [routineNote, setRoutineNote] = useState("");
   const [suggesting, setSuggesting] = useState(false);
   const [addingSuggestion, setAddingSuggestion] = useState<number | null>(null);
@@ -62,8 +66,12 @@ export default function RemindersPage() {
     setPermission(pushSupported ? Notification.permission : "unsupported");
     familyApi.list()
       .then(({ members }) => setFamilyMembers(members))
-      .catch(() => setError(t("family.loadError")));
+      .catch((error: unknown) => {
+        if (error instanceof ApiRequestError && error.status === 401) return;
+        setError(t("family.loadError"));
+      });
     const requestedProfile = new URLSearchParams(window.location.search).get("profile_oid");
+    setShowFamilyReminders(new URLSearchParams(window.location.search).get("family") === "1");
     if (requestedProfile) setProfileOid(requestedProfile);
     const params = new URLSearchParams(window.location.search);
     const requestedTitle = params.get("title");
@@ -82,6 +90,23 @@ export default function RemindersPage() {
       }
     }
   }, [t]);
+
+  useEffect(() => {
+    if (!showFamilyReminders) {
+      setFamilyReminders([]);
+      return;
+    }
+    if (!profile?.family_reminders_enabled) {
+      setFamilyReminders([]);
+      setError(t("reminders.familySharingRequired"));
+      return;
+    }
+    let cancelled = false;
+    api.familyReminders(profileOid)
+      .then((items) => { if (!cancelled) setFamilyReminders(items); })
+      .catch(() => { if (!cancelled) setError(t("reminders.familyLoadError")); });
+    return () => { cancelled = true; };
+  }, [profile?.family_reminders_enabled, profileOid, showFamilyReminders, t]);
 
   useEffect(() => {
     if (permission !== "granted") {
@@ -328,6 +353,7 @@ export default function RemindersPage() {
       }, profileOid);
       setRoutineSuggestions(result.suggestions);
       setRoutineNote(result.note);
+      setRoutineBasis(result.routine_basis);
     } catch {
       setError(t("reminders.suggestionsError"));
     } finally {
@@ -394,7 +420,7 @@ export default function RemindersPage() {
           <p className="mt-2 max-w-2xl text-sm text-muted">{t("reminders.description")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {familyMembers.length > 0 && (
+          {(familyMembers.length > 0 || profile?.family_reminders_enabled) && (
             <label className="space-y-1 text-xs font-medium text-muted">
               <span>{t("reminders.profileScope")}</span>
               <select value={profileOid ?? ""} onChange={(event) => setProfileOid(event.target.value || undefined)} className="input py-2">
@@ -420,6 +446,53 @@ export default function RemindersPage() {
       <p className="rounded-xl bg-brand-soft px-4 py-3 text-xs leading-5 text-muted">{t("reminders.notificationNote")}</p>
       {error && <p role="alert" className="rounded-xl border border-crit/30 bg-crit-soft px-3 py-2 text-sm text-crit">{error}</p>}
 
+      {familyMembers.length > 0 && (
+        <section className="card space-y-3 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">{t("reminders.familyGroupTitle")}</h2>
+              <p className="mt-1 text-sm text-muted">{t("reminders.familyGroupDescription")}</p>
+            </div>
+            <div className="flex gap-2">
+              <a href="/profile" className="btn btn-ghost !min-h-9">{t("reminders.manageFamilySharing")}</a>
+              {profile?.family_reminders_enabled && (
+                <button type="button" className="btn btn-soft !min-h-9" onClick={() => setShowFamilyReminders((current) => !current)}>
+                  {showFamilyReminders ? t("reminders.hideFamilyReminders") : t("reminders.viewFamilyReminders")}
+                </button>
+              )}
+            </div>
+          </div>
+          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {familyMembers.map((member) => (
+              <li key={member.oid} className="flex items-center justify-between gap-3 rounded-lg bg-surface-2 px-3 py-2 text-sm">
+                <span>{member.name}</span>
+                <span className={member.family_reminders_enabled ? "text-ok" : "text-muted"}>
+                  {member.family_reminders_enabled ? t("reminders.familySharingOn") : t("reminders.familySharingOff")}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {showFamilyReminders && (
+            <div className="space-y-2 border-t border-line pt-3">
+              <h3 className="text-sm font-semibold">{t("reminders.sharedUpcomingTitle")}</h3>
+              {familyReminders.length === 0
+                ? <p className="text-sm text-muted">{t("reminders.noFamilyReminders")}</p>
+                : <ul className="grid gap-2 sm:grid-cols-2">
+                  {familyReminders.map((reminder) => (
+                    <li key={`${reminder.id}-${reminder.profile_oid}`} className="rounded-lg border border-line p-3">
+                      <p className="font-medium">{reminder.title}</p>
+                      <p className="mt-1 text-xs text-muted">
+                        {reminder.profile_name} · {dateTime(reminder.due_at)}
+                      </p>
+                      {reminder.details && <p className="mt-2 whitespace-pre-wrap text-sm text-muted">{reminder.details}</p>}
+                    </li>
+                  ))}
+                </ul>}
+            </div>
+          )}
+        </section>
+      )}
+
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.8fr)]">
         <section className="card space-y-4 p-5 lg:col-span-2">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -433,6 +506,13 @@ export default function RemindersPage() {
             </button>
           </div>
           {routineNote && <p className="rounded-lg bg-surface-2 px-3 py-2 text-xs leading-5 text-muted">{routineNote}</p>}
+          {routineSuggestions.length > 0 && (
+            <p className="text-xs text-muted">
+              {routineBasis === "confirmed_prescriptions"
+                ? t("reminders.routineBasedOnMedicines")
+                : t("reminders.routineGeneral")}
+            </p>
+          )}
           {routineSuggestions.length > 0 && <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {routineSuggestions.map((item, index) => (
               <li key={`${item.category}-${item.local_time}-${index}`} className="rounded-xl border border-line p-3">

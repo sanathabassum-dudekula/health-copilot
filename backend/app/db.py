@@ -65,6 +65,7 @@ def init_db():
                 "medicines_text": "VARCHAR",
                 "previous_records": "VARCHAR",
                 "womens_health_profile": "JSON NOT NULL DEFAULT '{}'",
+                "family_reminders_enabled": "BOOLEAN NOT NULL DEFAULT FALSE",
                 "emergency_contact_name": "VARCHAR(120)",
                 "emergency_contact_phone": "VARCHAR(40)",
                 "pin_hash": "VARCHAR(256)",

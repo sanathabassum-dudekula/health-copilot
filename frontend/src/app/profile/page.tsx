@@ -40,6 +40,7 @@ export default function ProfilePage() {
   const [language, setLanguage] = useState<Lang>("en");
   const [voiceLanguage, setVoiceLanguage] = useState<Lang>("en");
   const [voiceReminders, setVoiceReminders] = useState(false);
+  const [familyReminders, setFamilyReminders] = useState(false);
   const [womensHealth, setWomensHealth] = useState<WomensHealthProfile>(EMPTY_WOMENS_HEALTH_PROFILE);
   const [periodEntryDate, setPeriodEntryDate] = useState("");
   const [womensHealthSaving, setWomensHealthSaving] = useState(false);
@@ -61,6 +62,7 @@ export default function ProfilePage() {
     setLanguage((profile.language in LANGS ? profile.language : "en") as Lang);
     setVoiceLanguage((profile.voice_language in LANGS ? profile.voice_language : "en") as Lang);
     setVoiceReminders(profile.voice_reminders_enabled);
+    setFamilyReminders(profile.family_reminders_enabled);
     setWomensHealth({
       ...EMPTY_WOMENS_HEALTH_PROFILE,
       ...profile.womens_health_profile,
@@ -88,11 +90,13 @@ export default function ProfilePage() {
         preferred_language: string;
         preferred_voice_language: Lang;
         voice_reminders_enabled: boolean;
+        family_reminders_enabled: boolean;
       } = {
         name: name.trim(),
         preferred_language: language,
         preferred_voice_language: voiceLanguage,
         voice_reminders_enabled: voiceReminders,
+        family_reminders_enabled: familyReminders,
       };
 
       if (sex) payload.sex = sex;
@@ -515,6 +519,18 @@ export default function ProfilePage() {
               <span>
                 <span className="block font-medium">{t("profile.voiceReminders")}</span>
                 <span className="mt-1 block text-xs font-normal text-muted">{t("profile.voiceRemindersDescription")}</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-3 rounded-xl border border-line p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={familyReminders}
+                onChange={(event) => setFamilyReminders(event.target.checked)}
+                className="mt-1"
+              />
+              <span>
+                <span className="block font-medium">{t("profile.familyReminders")}</span>
+                <span className="mt-1 block text-xs font-normal text-muted">{t("profile.familyRemindersDescription")}</span>
               </span>
             </label>
           </div>

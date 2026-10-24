@@ -19,6 +19,8 @@ from ..config import settings
 from ..db import get_db
 from ..ingestion.llm import invoke_with_retry, structured
 from ..models import (
+    Document,
+    FamilyLink,
     HealthReminder,
     Medication,
     Profile,
@@ -267,6 +269,26 @@ def _confirmed_prescriptions(target: Profile, db: Session) -> list[dict]:
     ]
 
 
+def _family_profiles(profile: Profile, db: Session) -> list[Profile]:
+    owner_user_ids = set(
+        db.scalars(
+            select(FamilyLink.owner_user_id).where(
+                FamilyLink.member_user_id == profile.user_id
+            )
+        ).all()
+    )
+    owner_user_ids.add(profile.user_id)
+    member_user_ids = db.scalars(
+        select(FamilyLink.member_user_id).where(
+            FamilyLink.owner_user_id.in_(owner_user_ids)
+        )
+    ).all()
+    user_ids = owner_user_ids.union(member_user_ids)
+    return db.scalars(
+        select(Profile).where(Profile.user_id.in_(user_ids))
+    ).all()
+
+
 
 def _requested_active_profile(
     profile_oid: str | None = None,
@@ -381,9 +403,16 @@ def dispatch_due_reminders(
     attempted = delivered = expired = failed = 0
     stop = False
     for reminder in due_reminders:
+        recipient_profile_ids = {reminder.profile_id}
+        if reminder.profile.family_reminders_enabled:
+            recipient_profile_ids.update(
+                family_profile.id
+                for family_profile in _family_profiles(reminder.profile, db)
+                if family_profile.family_reminders_enabled
+            )
         subscriptions = db.scalars(
             select(PushSubscription).where(
-                PushSubscription.profile_id == reminder.profile_id
+                PushSubscription.profile_id.in_(recipient_profile_ids)
             )
         ).all()
         for subscription in subscriptions:
@@ -411,8 +440,16 @@ def dispatch_due_reminders(
                     },
                     data=json.dumps({
                         "title": "CuraMind reminder",
-                        "body": "A scheduled reminder is due. Open CuraMind to view it.",
-                        "url": "/reminders",
+                        "body": (
+                            "A family reminder is due. Open CuraMind to view it."
+                            if subscription.profile_id != reminder.profile_id
+                            else "A scheduled reminder is due. Open CuraMind to view it."
+                        ),
+                        "url": (
+                            "/reminders?family=1"
+                            if subscription.profile_id != reminder.profile_id
+                            else "/reminders"
+                        ),
                         "reminder_id": reminder.id,
                     }),
                     vapid_private_key=private_key,
@@ -459,16 +496,71 @@ def list_confirmed_prescriptions(
     return _confirmed_prescriptions(profile, db)
 
 
+@router.get("/family")
+def list_family_shared_reminders(
+    profile: Profile = Depends(_requested_active_profile),
+    db: Session = Depends(get_db),
+):
+    if not profile.family_reminders_enabled:
+        raise HTTPException(
+            status_code=403,
+            detail="Enable family reminder sharing for this profile to view shared reminders.",
+        )
+    group_profiles = _family_profiles(profile, db)
+    shared_profiles = [
+        item for item in group_profiles if item.family_reminders_enabled
+    ]
+    if not shared_profiles:
+        return []
+    shared_profile_ids = [item.id for item in shared_profiles]
+    confirmed_docs = select(Document.id).where(
+        Document.profile_id.in_(shared_profile_ids),
+        Document.review_status == "confirmed",
+    )
+    items = db.scalars(
+        select(HealthReminder)
+        .where(
+            HealthReminder.profile_id.in_(shared_profile_ids),
+            HealthReminder.profile_id != profile.id,
+            HealthReminder.status == "pending",
+            or_(
+                HealthReminder.document_id.is_(None),
+                HealthReminder.document_id.in_(confirmed_docs),
+            ),
+        )
+        .order_by(HealthReminder.due_at, HealthReminder.id)
+        .limit(100)
+    ).all()
+    return [
+        {
+            **_reminder_json(item),
+            "profile_name": item.profile.name,
+        }
+        for item in items
+    ]
+
+
 @router.post("/suggestions")
 def suggest_routine(
     body: RoutineRequest,
     profile: Profile = Depends(_requested_active_profile),
+    db: Session = Depends(get_db),
 ):
+    prescriptions = _confirmed_prescriptions(profile, db)
     context = {
         "name": profile.name,
         "age": profile.age,
         "conditions_reported_by_user": profile.conditions_text,
         "allergies_reported_by_user": profile.allergies_text,
+        "confirmed_prescriptions": [
+            {
+                "name": item["name"],
+                "strength": item["strength"],
+                "dose_pattern": item["dose_pattern"],
+                "timing": item["timing"],
+            }
+            for item in prescriptions
+        ],
     }
     try:
         plan = invoke_with_retry(structured(settings.TEXT_MODEL, RoutinePlan), [
@@ -480,6 +572,10 @@ def suggest_routine(
                     "hydration, or gentle movement. Do not prescribe a diet, specific "
                     "foods, exercise intensity, treatment, or disease-specific advice. "
                     "Do not provide medication reminders or change prescription details. "
+                    "Use confirmed prescription information only as context to avoid "
+                    "conflicting with the clinician-provided routine. Never recommend a "
+                    "medication, dose, frequency, or medication time. Medication reminders "
+                    "must be separately reviewed and confirmed by the user. "
                     "Never infer personal facts from missing information. Use the supplied "
                     "profile only as potentially incomplete context. Include a brief note "
                     "that these are general suggestions to review and adjust with a clinician "
@@ -501,6 +597,8 @@ def suggest_routine(
     return {
         "suggestions": [item.model_dump() for item in plan.suggestions],
         "note": plan.note,
+        "routine_basis": "confirmed_prescriptions" if prescriptions else "general",
+        "confirmed_prescription_count": len(prescriptions),
     }
 
 

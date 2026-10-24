@@ -91,6 +91,9 @@ class Profile(Base):
     womens_health_profile: Mapped[dict] = mapped_column(
         JSON, default=dict, server_default="{}", nullable=False
     )
+    family_reminders_enabled: Mapped[bool] = mapped_column(
+        default=False, server_default="false", nullable=False
+    )
 
     # Emergency contact
     emergency_contact_name: Mapped[str | None] = mapped_column(

@@ -157,6 +157,7 @@ def _member_json(member: Profile) -> dict:
         "previous_records": member.previous_records,
         "emergency_contact_name": member.emergency_contact_name,
         "emergency_contact_phone": member.emergency_contact_phone,
+        "family_reminders_enabled": member.family_reminders_enabled,
         "has_pin": member.pin_hash is not None,
     }
 

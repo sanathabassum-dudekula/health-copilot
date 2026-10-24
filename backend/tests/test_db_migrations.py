@@ -78,6 +78,7 @@ def test_init_db_adds_profile_fields_to_existing_schema(monkeypatch, tmp_path):
         "medicines_text",
         "previous_records",
         "womens_health_profile",
+        "family_reminders_enabled",
         "emergency_contact_name",
         "emergency_contact_phone",
         "pin_hash",
@@ -114,6 +115,7 @@ def test_init_db_adds_profile_fields_to_existing_schema(monkeypatch, tmp_path):
         session.commit()
 
         assert session.get(models.Profile, user.profile.id).name == "Guest"
+        assert session.get(models.Profile, user.profile.id).family_reminders_enabled is False
         assert user.preferred_voice_language == "en"
         assert user.voice_reminders_enabled is False
         assert session.get(

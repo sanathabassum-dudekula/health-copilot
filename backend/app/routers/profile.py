@@ -94,6 +94,7 @@ class ProfileUpdate(BaseModel):
     preferred_language: Literal["en", "hi", "te", "ta"] | None = None
     preferred_voice_language: Literal["en", "hi", "te", "ta"] | None = None
     voice_reminders_enabled: bool | None = None
+    family_reminders_enabled: bool | None = None
     womens_health_profile: WomensHealthProfile | None = None
 
 
@@ -115,6 +116,7 @@ def _profile_json(p: Profile, db: Session) -> dict:
         "name": p.name, "dob": p.dob, "age": _age(p.dob) if p.dob else p.age, "sex": p.sex, "language": p.user.preferred_language,
         "voice_language": p.user.preferred_voice_language,
         "voice_reminders_enabled": p.user.voice_reminders_enabled,
+        "family_reminders_enabled": p.family_reminders_enabled,
         "womens_health_profile": WomensHealthProfile.model_validate(
             p.womens_health_profile or {}
         ).model_dump(mode="json"),

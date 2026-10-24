@@ -182,6 +182,7 @@ export type Profile = {
   language: string;
   voice_language: string;
   voice_reminders_enabled: boolean;
+  family_reminders_enabled: boolean;
   womens_health_profile: WomensHealthProfile;
   dob: string | null;
   sex: string | null;
@@ -248,6 +249,7 @@ export type ProfileFields = {
   preferred_language?: string;
   preferred_voice_language?: "en" | "hi" | "te" | "ta";
   voice_reminders_enabled?: boolean;
+  family_reminders_enabled?: boolean;
   womens_health_profile?: WomensHealthProfile;
 };
 
@@ -310,6 +312,10 @@ export type HealthReminder = {
   recurrence: "none" | "daily" | "weekly" | "monthly";
   status: "pending" | "completed" | "dismissed";
   created_at: string;
+};
+
+export type FamilySharedReminder = HealthReminder & {
+  profile_name: string;
 };
 
 export type PushSubscriptionPayload = {
@@ -394,6 +400,10 @@ export const api = {
     if (includeInactive) query.set("include_inactive", "true");
     return req<HealthReminder[]>(`/reminders${query.size ? `?${query}` : ""}`);
   },
+  familyReminders: (profileOid?: string) =>
+    req<FamilySharedReminder[]>(
+      `/reminders/family${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`,
+    ),
   pushConfig: (profileOid?: string) =>
     req<{ enabled: boolean; public_key: string | null }>(
       `/reminders/push/config${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`,
@@ -427,7 +437,12 @@ export const api = {
     req<void>(`/reminders/${id}${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`, { method: "DELETE" }),
   insights: (profileOid?: string) => req<HealthInsights>(`/insights${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`),
   routineSuggestions: (body: { written_language: "en" | "hi" | "te" | "ta"; voice_language: "en" | "hi" | "te" | "ta" }, profileOid?: string) =>
-    post<{ suggestions: RoutineSuggestion[]; note: string }>(
+    post<{
+      suggestions: RoutineSuggestion[];
+      note: string;
+      routine_basis: "confirmed_prescriptions" | "general";
+      confirmed_prescription_count: number;
+    }>(
       `/reminders/suggestions${profileOid ? `?profile_oid=${encodeURIComponent(profileOid)}` : ""}`,
       body,
     ),
@@ -498,6 +513,7 @@ export type FamilyMember = {
   previous_records: string | null;
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
+  family_reminders_enabled: boolean;
   has_pin: boolean;
 };
 
