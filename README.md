@@ -59,7 +59,7 @@ CuraMind is an active prototype. The repository contains a Next.js/TypeScript we
 | Pregnancy and women's health | Sensitive extraction is shown only in document detail and is marked for clinician review; dedicated permissions, correction, and longitudinal views are not implemented. |
 | Authentication and access controls | Require security review and tests before use with real users or sensitive records. |
 | Downloads/exports | Preserve existing behaviour and test it after changes. |
-| Production deployment | Not complete. Production database, persistent file storage, access controls, and privacy/security checks remain deployment prerequisites. |
+| Hosted prototype | The Next.js frontend and FastAPI backend are deployed as separate Vercel projects from the `frontend/` and `backend/` directories. The frontend/API proxy and guest-profile database flow have been smoke-tested. This is not approval to store real health information: independent security/privacy review, backups, retention, and clinical evaluation remain incomplete. |
 
 ### Stage 1: the end-to-end health-record workflow
 
@@ -168,7 +168,7 @@ Open `backend\.env` locally and configure the model/provider settings and S3-com
 Start the API:
 
 ```powershell
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 If the backend reports a missing setting, database dependency, or external service, check `backend/app/config.py`, `backend/app/db.py`, and the current README/configuration before changing the database. **Do not delete or recreate an existing database to troubleshoot startup.**
@@ -186,7 +186,7 @@ npm run dev
 
 Open the URL printed by Next.js. This workspace has used `http://localhost:5173`; use the actual URL printed by the dev server if it differs.
 
-**Check the API proxy before testing API-dependent pages.** `frontend/next.config.ts` has been configured for local development and the backend runs on port `8001` in the current setup. The example environment file may specify a different default (`BACKEND_URL=http://localhost:8000`). Do not assume these values agree: inspect `frontend/next.config.ts` and `frontend/.env.example`, then make the local proxy target and backend port consistent. Keep local overrides in `.env.local` rather than hard-coding deployment secrets.
+**Check the API proxy before testing API-dependent pages.** Locally, both the backend command and frontend default use `http://127.0.0.1:8000`. On Vercel, the frontend defaults to the deployed backend at `https://curamind-backend.vercel.app`; `BACKEND_URL` can override that at build time. Keep local overrides in `.env.local` rather than hard-coding deployment secrets.
 
 ### 4. Run backend tests
 
@@ -223,30 +223,24 @@ For a hackathon demo:
 
 ## Deployment overview
 
-**The web frontend and FastAPI backend need separate deployment configuration.** Vercel can host the Next.js frontend; the Python API must be hosted on a service that supports the backend process and its runtime needs.
+**The web frontend and FastAPI backend are separate Vercel projects connected to this GitHub repository.** Configure each project's root directory to match its application folder. The current project domains are `https://health-copilot-eight.vercel.app` and `https://curamind-backend.vercel.app`.
 
 ### Frontend on Vercel
 
-1. Import the GitHub repository into Vercel.
-2. Set **Root Directory** to `frontend`.
-3. Keep the detected Next.js framework and build settings unless the project configuration requires otherwise.
-4. Optionally set `BACKEND_URL` to the deployed API origin. On Vercel, the frontend defaults to `https://curamind-backend.vercel.app`; locally it defaults to `http://127.0.0.1:8000`. The rewrite in `frontend/next.config.ts` is read at build time.
-5. Redeploy after changing environment variables and verify API calls against the deployed backend.
+1. Connect the GitHub repository and set **Root Directory** to `frontend`.
+2. Use the detected Next.js framework and `npm run build`.
+3. Set `BACKEND_URL` to `https://curamind-backend.vercel.app` for Production. The fallback in `frontend/next.config.ts` uses that URL on Vercel and `http://127.0.0.1:8000` locally.
+4. Redeploy after changing environment variables and verify `/api/openapi.json` and an authenticated or guest API flow.
 
-### Backend and persistent data
+### FastAPI backend on Vercel
 
-Before connecting a public frontend to the API:
+1. Connect the same GitHub repository and set **Root Directory** to `backend`. `backend/index.py` exports `app.main:app`, and `backend/requirements.txt` declares the Python runtime dependencies.
+2. Attach a persistent Neon PostgreSQL database. The application accepts `DATABASE_URL` or the Vercel Neon integration's `DATABASE_URL_UNPOOLED`; the local SQLite default is for development only.
+3. Add `LLM_API_KEY` in the backend Vercel project's Production environment to enable document extraction, summaries, and AI assistant features. Store the key only in Vercel environment settings, never in Git.
+4. Configure the S3-compatible storage variables in Vercel for persistent uploaded files. Do not rely on the function's local filesystem for uploads.
+5. After deployment, verify the backend OpenAPI route and the frontend `/api/` proxy; check Vercel Runtime Logs if either returns a server error.
 
-- Deploy FastAPI separately and configure the start command for the selected host.
-- Set `DATABASE_URL` on the API deployment to a persistent PostgreSQL database. The local SQLite default is not suitable for serverless deployments.
-- Existing databases are upgraded at startup with the currently required account and profile columns; still take a backup before deploying schema changes.
-- Set API keys and other secrets through the hosting provider's secret/environment settings—not in source code.
-- Configure a production database and persistent file storage. Do not rely on an ephemeral server filesystem or an unverified local SQLite database for persistent real-user medical records.
-- Configure HTTPS, CORS/proxy behaviour, request limits, and access controls for the deployed domains.
-- Test uploads, document processing, review, summaries, timeline, downloads, error handling, and permissions after deployment.
-- Confirm backup and recovery procedures without exposing health information in logs.
-
-Do not point a public deployment at your local machine or assume that a successful Vercel build means the backend is deployed.
+The hosted prototype has working frontend/API connectivity, but a successful deployment is not a production-readiness or clinical-safety certification. Before real health information is used, independently verify access controls, storage configuration, database backups/recovery, retention, monitoring, and privacy/security safeguards. Test uploads, document processing, review, summaries, timeline, downloads, and permissions with synthetic data.
 
 ## Roadmap
 

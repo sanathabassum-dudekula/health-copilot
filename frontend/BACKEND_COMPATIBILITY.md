@@ -22,6 +22,8 @@ Family profile management, PIN protection, profile switching, and pending invita
 
 The guest experience remains available for non-family workflows. Do not use this prototype with real health information until production access controls, storage, backups, and privacy/security controls are independently verified.
 
+The backend's document extraction, summary generation, and AI assistant require `LLM_API_KEY` in the backend deployment environment. Without that provider credential, API and account workflows can still respond, but model-backed features are unavailable.
+
 ## Run locally
 
 1. Install Node.js 20.9 or newer.
