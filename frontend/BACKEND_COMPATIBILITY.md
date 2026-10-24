@@ -1,6 +1,6 @@
 # CuraMind frontend — backend compatibility notes
 
-This package is based on the latest frontend source supplied for this task. `next.config.ts` proxies browser requests from `/api/*` to `BACKEND_URL`; the local backend default is `http://127.0.0.1:8000`.
+This package is based on the latest frontend source supplied for this task. `next.config.ts` proxies browser requests from `/api/*` to `BACKEND_URL`. Local development defaults to `http://127.0.0.1:8000`; on Vercel, the default backend is `https://curamind-backend.vercel.app`. Set `BACKEND_URL` to override either default.
 
 ## Routes exposed by the backend
 

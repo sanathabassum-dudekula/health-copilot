@@ -1,7 +1,11 @@
 ﻿// The browser calls /api/* and Next.js forwards requests to FastAPI.
 import type { NextConfig } from "next";
 
-const backend = process.env.BACKEND_URL ?? "http://127.0.0.1:8000";
+const backend =
+  process.env.BACKEND_URL ||
+  (process.env.VERCEL
+    ? "https://curamind-backend.vercel.app"
+    : "http://127.0.0.1:8000");
 
 const config: NextConfig = {
   rewrites: async () => [
@@ -16,5 +20,4 @@ const config: NextConfig = {
 };
 
 export default config;
-
 

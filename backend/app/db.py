@@ -1,9 +1,18 @@
 from sqlalchemy import create_engine, inspect, select
+from sqlalchemy.engine import URL, make_url
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from .config import settings
 
-engine = create_engine(settings.DATABASE_URL)
+
+def _database_url(value: str) -> URL:
+    url = make_url(value)
+    if url.drivername in {"postgres", "postgresql"}:
+        return url.set(drivername="postgresql+psycopg")
+    return url
+
+
+engine = create_engine(_database_url(settings.DATABASE_URL))
 SessionLocal = sessionmaker(engine, expire_on_commit=False)
 
 

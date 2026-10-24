@@ -1,7 +1,13 @@
 
 from pathlib import Path
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+DEFAULT_DATABASE_URL = (
+    f"sqlite:///{(Path(__file__).resolve().parents[1] / 'dev.db').as_posix()}"
+)
 
 
 class Settings(BaseSettings):
@@ -10,8 +16,9 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    DATABASE_URL: str = (
-        f"sqlite:///{(Path(__file__).resolve().parents[1] / 'dev.db').as_posix()}"
+    DATABASE_URL: str = Field(
+        default=DEFAULT_DATABASE_URL,
+        validation_alias=AliasChoices("DATABASE_URL", "DATABASE_URL_UNPOOLED"),
     )
     VISION_MODEL: str = "google_genai:gemini-3.1-flash-lite"
     TEXT_MODEL: str = "google_genai:gemini-3.1-flash-lite"

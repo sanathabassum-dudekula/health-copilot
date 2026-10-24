@@ -230,7 +230,7 @@ For a hackathon demo:
 1. Import the GitHub repository into Vercel.
 2. Set **Root Directory** to `frontend`.
 3. Keep the detected Next.js framework and build settings unless the project configuration requires otherwise.
-4. Set `BACKEND_URL` to the deployed API origin (for this deployment, `https://curamind-backend.vercel.app`). The rewrite in `frontend/next.config.ts` is read at build time.
+4. Optionally set `BACKEND_URL` to the deployed API origin. On Vercel, the frontend defaults to `https://curamind-backend.vercel.app`; locally it defaults to `http://127.0.0.1:8000`. The rewrite in `frontend/next.config.ts` is read at build time.
 5. Redeploy after changing environment variables and verify API calls against the deployed backend.
 
 ### Backend and persistent data
