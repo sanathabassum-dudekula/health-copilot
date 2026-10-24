@@ -1,4 +1,6 @@
+
 from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,13 +11,13 @@ class Settings(BaseSettings):
     )
 
     DATABASE_URL: str = "sqlite:///dev.db"
-    AUTH_SECRET: str = ""
     VISION_MODEL: str = "google_genai:gemini-3.1-flash-lite"
     TEXT_MODEL: str = "google_genai:gemini-3.1-flash-lite"
     LLM_API_KEY: str = ""
     LLM_KWARGS: dict = {}
     STORAGE_DIR: str = "storage"
 
+    # S3-compatible medical document storage
     AWS_ENDPOINT_URL_S3: str = ""
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""

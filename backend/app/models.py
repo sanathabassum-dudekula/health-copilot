@@ -10,7 +10,6 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
-    Text,
     UniqueConstraint,
     func,
 )
@@ -26,14 +25,6 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     preferred_language: Mapped[str] = mapped_column(String, default="en")
-    preferred_voice_language: Mapped[str] = mapped_column(
-        String, default="en", server_default="en"
-    )
-    voice_reminders_enabled: Mapped[bool] = mapped_column(
-        default=False, server_default="false"
-    )
-    email: Mapped[str | None] = mapped_column(String(320), unique=True, index=True, nullable=True)
-    password_hash: Mapped[str | None] = mapped_column(String(256), nullable=True)
 
     profile: Mapped["Profile"] = relationship(
         back_populates="user", cascade=CASCADE, uselist=False
@@ -72,14 +63,6 @@ class Profile(Base):
     name: Mapped[str] = mapped_column(String)
     dob: Mapped[date | None] = mapped_column(Date)
     sex: Mapped[str | None] = mapped_column(String)
-    age: Mapped[int | None] = mapped_column(Integer)
-    blood_group: Mapped[str | None] = mapped_column(String)
-    allergies_text: Mapped[str | None] = mapped_column(String)
-    conditions_text: Mapped[str | None] = mapped_column(String)
-    medicines_text: Mapped[str | None] = mapped_column(String)
-    previous_records: Mapped[str | None] = mapped_column(String)
-    emergency_contact_name: Mapped[str | None] = mapped_column(String)
-    emergency_contact_phone: Mapped[str | None] = mapped_column(String)
 
     abha_number: Mapped[str | None] = mapped_column(String)
     abha_address: Mapped[str | None] = mapped_column(String)
@@ -88,18 +71,6 @@ class Profile(Base):
     user: Mapped["User"] = relationship(back_populates="profile")
     documents: Mapped[list["Document"]] = relationship(
         cascade=CASCADE
-    )
-    assistant_messages: Mapped[list["AssistantMessage"]] = relationship(
-        back_populates="profile", cascade=CASCADE
-    )
-    assistant_conversations: Mapped[list["AssistantConversation"]] = relationship(
-        back_populates="profile", cascade=CASCADE
-    )
-    health_reminders: Mapped[list["HealthReminder"]] = relationship(
-        back_populates="profile", cascade=CASCADE
-    )
-    vital_signs: Mapped[list["VitalSign"]] = relationship(
-        back_populates="profile", cascade=CASCADE
     )
 
 
@@ -144,11 +115,6 @@ class Document(Base):
     discharge_date: Mapped[date | None] = mapped_column(Date)
 
     status: Mapped[str] = mapped_column(String, default="processing")
-    review_status: Mapped[str] = mapped_column(
-        String, default="pending", server_default="pending", nullable=False
-    )
-    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    reviewed_by_profile_id: Mapped[int | None] = mapped_column(Integer)
     extraction: Mapped[dict | None] = mapped_column(JSON)
     summary: Mapped[dict | None] = mapped_column(JSON)
     summary_i18n: Mapped[dict | None] = mapped_column(JSON)
@@ -189,25 +155,6 @@ class Observation(Base):
     effective_at: Mapped[date | None] = mapped_column(Date)
     confidence: Mapped[float | None] = mapped_column(Float)
     note: Mapped[str | None] = mapped_column(String)
-
-
-class VitalSign(Base):
-    __tablename__ = "vital_signs"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    profile_id: Mapped[int] = mapped_column(
-        ForeignKey("profiles.id", ondelete="CASCADE"), index=True
-    )
-    metric: Mapped[str] = mapped_column(String(32))
-    value: Mapped[float] = mapped_column(Float)
-    unit: Mapped[str] = mapped_column(String(16))
-    source: Mapped[str] = mapped_column(String(16))
-    device_name: Mapped[str | None] = mapped_column(String(120))
-    captured_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), index=True
-    )
-
-    profile: Mapped["Profile"] = relationship(back_populates="vital_signs")
 
 
 class Medication(Base):
@@ -251,82 +198,3 @@ class Allergy(Base):
 
     substance: Mapped[str] = mapped_column(String)
     reaction: Mapped[str | None] = mapped_column(String)
-
-
-class HealthReminder(Base):
-    __tablename__ = "health_reminders"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    profile_id: Mapped[int] = mapped_column(
-        ForeignKey("profiles.id", ondelete="CASCADE"), index=True
-    )
-    document_id: Mapped[int | None] = mapped_column(
-        ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
-    )
-    title: Mapped[str] = mapped_column(String(160))
-    details: Mapped[str | None] = mapped_column(Text)
-    spoken_title: Mapped[str | None] = mapped_column(String(160))
-    spoken_details: Mapped[str | None] = mapped_column(Text)
-    due_at: Mapped[datetime] = mapped_column(DateTime, index=True)
-    category: Mapped[str] = mapped_column(String(24), default="other")
-    recurrence: Mapped[str] = mapped_column(String(16), default="none")
-    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now()
-    )
-
-    profile: Mapped["Profile"] = relationship(back_populates="health_reminders")
-
-
-class AssistantConversation(Base):
-    __tablename__ = "assistant_conversations"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    profile_id: Mapped[int] = mapped_column(ForeignKey("profiles.id"), index=True)
-    title: Mapped[str] = mapped_column(String(120), default="New health chat")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now()
-    )
-
-    profile: Mapped["Profile"] = relationship(back_populates="assistant_conversations")
-    messages: Mapped[list["AssistantMessage"]] = relationship(
-        back_populates="conversation", cascade=CASCADE
-    )
-
-
-class AssistantMessage(Base):
-    __tablename__ = "assistant_messages"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    profile_id: Mapped[int] = mapped_column(ForeignKey("profiles.id"), index=True)
-    conversation_id: Mapped[int | None] = mapped_column(
-        ForeignKey("assistant_conversations.id"), index=True, nullable=True
-    )
-    role: Mapped[str] = mapped_column(String(10))
-    content: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now()
-    )
-
-    profile: Mapped["Profile"] = relationship(back_populates="assistant_messages")
-    conversation: Mapped["AssistantConversation | None"] = relationship(
-        back_populates="messages"
-    )
-
-
-
-class AuthSession(Base):
-    __tablename__ = "auth_sessions"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True
-    )
-    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now()
-    )

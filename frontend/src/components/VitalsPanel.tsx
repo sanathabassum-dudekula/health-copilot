@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -24,7 +24,8 @@ type BluetoothDeviceLike = EventTarget & {
 };
 type BluetoothManagerLike = {
   requestDevice(options: {
-    filters: { services: string[] }[];
+    filters?: { services: string[] }[];
+    acceptAllDevices?: boolean;
     optionalServices: string[];
   }): Promise<BluetoothDeviceLike>;
 };
@@ -111,7 +112,7 @@ function rounded(metric: VitalMetric, value: number) {
   return metric === "heart_rate" ? Math.round(value) : Math.round(value * 10) / 10;
 }
 
-export default function VitalsPanel({ profileOid }: { profileOid?: string }) {
+export default function VitalsPanel() {
   const { t, i18n } = useTranslation();
   const [readings, setReadings] = useState<VitalSign[]>([]);
   const [liveReadings, setLiveReadings] = useState<Partial<Record<VitalMetric, LiveVital>>>({});
@@ -131,11 +132,11 @@ export default function VitalsPanel({ profileOid }: { profileOid?: string }) {
 
   const refresh = useCallback(async () => {
     try {
-      setReadings(await api.vitals(profileOid));
+      setReadings(await api.vitals());
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : t("wearables.loadError"));
     }
-  }, [profileOid, t]);
+  }, [t]);
 
   useEffect(() => {
     setSupported(
@@ -180,7 +181,7 @@ export default function VitalsPanel({ profileOid }: { profileOid?: string }) {
         source,
         ...(deviceName ? { device_name: deviceName } : {}),
         captured_at: capturedAt,
-      }, profileOid);
+      });
       setReadings((current) => [saved, ...current.filter((item) => item.id !== saved.id)].slice(0, 30));
       setError("");
       return true;
@@ -188,7 +189,7 @@ export default function VitalsPanel({ profileOid }: { profileOid?: string }) {
       setError(saveError instanceof Error ? saveError.message : t("wearables.saveError"));
       return false;
     }
-  }, [profileOid, t]);
+  }, [t]);
 
   async function connectDevice() {
     setError("");
@@ -200,7 +201,7 @@ export default function VitalsPanel({ profileOid }: { profileOid?: string }) {
       }
 
       const device = await bluetooth.requestDevice({
-        filters: BLE_SERVICES.map((service) => ({ services: [service] })),
+        acceptAllDevices: true,
         optionalServices: BLE_SERVICES,
       });
       deviceRef.current = device;
@@ -376,3 +377,5 @@ export default function VitalsPanel({ profileOid }: { profileOid?: string }) {
     </section>
   );
 }
+
+

@@ -1,10 +1,10 @@
-"use client";
-import { FormEvent, useEffect, useState } from "react";
+﻿"use client";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useTranslation } from "react-i18next";
 import { LANGS, Lang } from "@/i18n";
-import { api, ApiRequestError, Profile, familyApi, FamilyMember } from "@/api";
+import { api, ApiRequestError, Profile } from "@/api";
 import Icon from "@/components/Icon";
 
 export default function ChooseProfilePage() {
@@ -12,26 +12,7 @@ export default function ChooseProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
-  const [showAdd, setShowAdd] = useState(false);
-  const [memberName, setMemberName] = useState("");
-  const [dateOfBirth, setDateOfBirth] = useState("");
-  const [age, setAge] = useState("");
-  const [gender, setGender] = useState("");
-  const [bloodGroup, setBloodGroup] = useState("");
-  const [emergencyName, setEmergencyName] = useState("");
-  const [emergencyPhone, setEmergencyPhone] = useState("");
   const [notice, setNotice] = useState("");
-  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
-  const [savingMember, setSavingMember] = useState(false);
-
-  async function loadFamilyMembers(isActive: () => boolean = () => true) {
-    try {
-      const result = await familyApi.list();
-      if (isActive()) setFamilyMembers(result.members);
-    } catch (error) {
-      if (isActive()) setNotice(error instanceof Error ? error.message : t("home.loadFamilyError"));
-    }
-  }
 
   useEffect(() => {
     let cancelled = false;
@@ -45,7 +26,6 @@ export default function ChooseProfilePage() {
             if (!cancelled) setNotice(error instanceof Error ? error.message : t("home.loadError"));
           })
           .finally(() => { if (!cancelled) setLoading(false); });
-        void loadFamilyMembers(() => !cancelled);
       })
       .catch((error) => {
         if (cancelled) return;
@@ -57,53 +37,6 @@ export default function ChooseProfilePage() {
 
     return () => { cancelled = true; };
   }, []);
-
-  async function handleAddMember(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!memberName.trim()) {
-      setNotice(t("home.familyNameRequired"));
-      return;
-    }
-
-    setSavingMember(true);
-    setNotice("");
-
-    try {
-            await familyApi.add({
-        name: memberName.trim(),
-        ...(dateOfBirth ? { dob: dateOfBirth } : {}),
-        ...(gender ? { sex: gender } : {}),
-        ...(age.trim() && Number.isFinite(Number(age))
-          ? { age: Number(age) }
-          : {}),
-        ...(bloodGroup.trim() ? { blood_group: bloodGroup.trim() } : {}),
-        ...(emergencyName.trim()
-          ? { emergency_contact_name: emergencyName.trim() }
-          : {}),
-        ...(emergencyPhone.trim()
-          ? { emergency_contact_phone: emergencyPhone.trim() }
-          : {}),
-      });
-
-      await loadFamilyMembers();
-
-      setMemberName("");
-      setDateOfBirth("");
-      setAge("");
-      setGender("");
-      setBloodGroup("");
-      setEmergencyName("");
-      setEmergencyPhone("");
-
-      setNotice(t("home.familySaved"));
-      setShowAdd(false);
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : t("home.saveFamilyError"));
-    } finally {
-      setSavingMember(false);
-    }
-  }
   const initials = (profile?.name || t("home.myProfile"))
     .split(/\s+/)
     .map((part) => part[0])
@@ -294,219 +227,10 @@ export default function ChooseProfilePage() {
         </div>
       </div>
 
-      <section hidden={!authenticated} className="card curamind-family-section space-y-4 p-5 sm:p-6">
-        <div className="flex items-start gap-3">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-brand-soft text-brand">
-            <Icon name="user" className="h-6 w-6" />
-          </span>
-
-          <div className="flex-1">
-            <h2 className="text-xl font-semibold">{t("home.familyProfiles")}</h2>
-            <p className="mt-1 text-sm leading-6 text-muted">
-              {t("home.familyText")}
-            </p>
-          </div>
-        </div>
-
-        {familyMembers.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-line p-4">
-            <p className="font-medium">{t("home.noFamily")}</p>
-            <p className="mt-1 text-sm leading-6 text-muted">
-              {t("home.noFamilyText")}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {familyMembers.map((member) => (
-              <div
-                key={member.oid}
-                className="flex items-center justify-between gap-4 rounded-xl border border-line bg-white p-4"
-              >
-                <Link href={`/profiles?oid=${encodeURIComponent(member.oid)}`} className="flex min-w-0 flex-1 items-center gap-3">
-                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-soft font-semibold text-brand">
-                    {member.name.trim().charAt(0).toUpperCase()}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{member.name}</p>
-                    <p className="text-sm text-muted">
-                      {member.dob || t("home.dobNotAdded")}
-                      {member.sex ? ` · ${member.sex}` : ""}
-                    </p>
-                  </div>
-                  <span className="sr-only">{t("home.continueRecords")}</span>
-                </Link>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={async () => {
-                    if (!window.confirm(t("home.removeFamilyConfirm", { name: member.name }))) return;
-                    try {
-                      await familyApi.remove(member.oid);
-                      await loadFamilyMembers();
-                      setNotice(t("home.familyRemoved"));
-                    } catch (error) {
-                      setNotice(error instanceof Error ? error.message : t("home.removeFamilyError"));
-                    }
-                  }}
-                >
-                  {t("home.remove")}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => {
-            setShowAdd((value) => !value);
-            setNotice("");
-          }}
-        >
-          <Icon name="plus" className="h-4 w-4" />
-          {showAdd ? t("home.closeForm") : `+ ${t("home.addFamily")}`}
-        </button>
-
-        {showAdd && (
-          <form
-            onSubmit={handleAddMember}
-            className="space-y-5 border-t border-line pt-5"
-          >
-            <h3 className="font-semibold">{t("home.familyDetails")}</h3>
-
-            <p className="text-sm leading-6 text-muted">
-              {t("home.previewOnly")}
-            </p>
-
-            <div>
-              <h4 className="text-sm font-semibold">{t("home.basicInfo")}</h4>
-
-              <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                <label className="block space-y-1.5 text-sm font-medium">
-                  {t("home.fullName")} *
-                  <input
-                    required
-                    value={memberName}
-                    onChange={(event) => setMemberName(event.target.value)}
-                    className="min-h-11 w-full rounded-xl border border-line bg-surface px-3 text-ink"
-                    placeholder={t("home.fullNamePlaceholder")}
-                  />
-                </label>
-
-                <label className="block space-y-1.5 text-sm font-medium">
-                  {t("home.dob")}
-                  <input
-                    type="date"
-                    value={dateOfBirth}
-                    onChange={(event) => setDateOfBirth(event.target.value)}
-                    max={new Date().toISOString().slice(0, 10)}
-                    className="min-h-11 w-full rounded-xl border border-line bg-surface px-3 text-ink"
-                  />
-                </label>
-
-                <label className="block space-y-1.5 text-sm font-medium">
-                  {t("home.age")}
-                  <input
-                    type="number"
-                    min="0"
-                    max="125"
-                    value={age}
-                    onChange={(event) => setAge(event.target.value)}
-                    className="min-h-11 w-full rounded-xl border border-line bg-surface px-3 text-ink"
-                    placeholder={t("home.agePlaceholder")}
-                  />
-                </label>
-
-                <label className="block space-y-1.5 text-sm font-medium">
-                  {t("home.gender")}
-                  <select
-                    value={gender}
-                    onChange={(event) => setGender(event.target.value)}
-                    className="min-h-11 w-full rounded-xl border border-line bg-surface px-3 text-ink"
-                  >
-                    <option value="">{t("home.selectGender")}</option>
-                    <option value="female">{t("home.female")}</option>
-                    <option value="male">{t("home.male")}</option>
-                    <option value="other">{t("home.other")}</option>
-                    <option value="prefer_not_to_say">
-                      {t("home.preferNot")}
-                    </option>
-                  </select>
-                </label>
-
-                <label className="block space-y-1.5 text-sm font-medium">
-                  {t("home.bloodType")}
-                  <select
-                    value={bloodGroup}
-                    onChange={(event) => setBloodGroup(event.target.value)}
-                    className="min-h-11 w-full rounded-xl border border-line bg-surface px-3 text-ink"
-                  >
-                    <option value="">{t("home.unknownBlood")}</option>
-                    {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map(
-                      (item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      )
-                    )}
-                  </select>
-                </label>
-              </div>
-            </div>
-            <div className="rounded-2xl border border-line bg-brand-soft p-4">
-              <h4 className="font-semibold">{t("home.emergencyContact")}</h4>
-              <p className="mt-1 text-sm text-muted">
-                {t("home.optionalFields")}
-              </p>
-
-              <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                <label className="block space-y-1.5 text-sm font-medium">
-                  {t("home.contactName")}
-                  <input
-                    value={emergencyName}
-                    onChange={(event) => setEmergencyName(event.target.value)}
-                    className="min-h-11 w-full rounded-xl border border-line bg-white px-3 text-ink"
-                    placeholder={t("home.contactNamePlaceholder")}
-                  />
-                </label>
-
-                <label className="block space-y-1.5 text-sm font-medium">
-                  {t("home.contactPhone")}
-                  <input
-                    type="tel"
-                    value={emergencyPhone}
-                    onChange={(event) => setEmergencyPhone(event.target.value)}
-                    className="min-h-11 w-full rounded-xl border border-line bg-white px-3 text-ink"
-                    placeholder={t("home.contactPhonePlaceholder")}
-                  />
-                </label>
-              </div>
-            </div>
-
-            <p className="text-xs leading-5 text-muted">
-              {t("home.requiredNote")}
-            </p>
-
-            <button type="submit" className="btn btn-primary">
-              {t("home.reviewSetup")}
-            </button>
-          </form>
-        )}
-
-        {notice && (
-          <p
-            role="status"
-            className="rounded-xl border border-line bg-surface-2 p-3 text-sm leading-6 text-muted"
-          >
-            {notice}
-          </p>
-        )}
-      </section>
-
       <p className="text-center text-xs leading-5 text-muted">
         {t("home.footer")}
       </p>
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-from calendar import monthrange
+﻿from calendar import monthrange
 from datetime import datetime, timedelta, timezone
 import logging
 from typing import Literal
@@ -8,8 +8,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from ..access import confirmed_document_ids, profile_for_owner
-from ..auth import current_profile
+from ..access import confirmed_document_ids
+from ..auth import active_profile
 from ..config import settings
 from ..db import get_db
 from ..ingestion.llm import invoke_with_retry, structured
@@ -92,15 +92,13 @@ def _reminder_json(reminder: HealthReminder) -> dict:
 
 def _owned_reminder(
     reminder_id: int,
-    owner: Profile,
-    profile_oid: str | None,
+    profile: Profile,
     db: Session,
 ) -> HealthReminder:
-    target = profile_for_owner(owner, db, profile_oid)
     reminder = db.scalar(
         select(HealthReminder).where(
             HealthReminder.id == reminder_id,
-            HealthReminder.profile_id == target.id,
+            HealthReminder.profile_id == profile.id,
         )
     )
     if reminder is None:
@@ -151,29 +149,33 @@ def _confirmed_prescriptions(target: Profile, db: Session) -> list[dict]:
     ]
 
 
+
+def _requested_active_profile(
+    profile_oid: str | None = None,
+    profile: Profile = Depends(active_profile),
+) -> Profile:
+    if profile_oid is not None and profile_oid != profile.oid:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return profile
 @router.get("/confirmed-prescriptions")
 def list_confirmed_prescriptions(
-    profile_oid: str | None = None,
-    owner: Profile = Depends(current_profile),
+    profile: Profile = Depends(_requested_active_profile),
     db: Session = Depends(get_db),
 ):
-    target = profile_for_owner(owner, db, profile_oid)
-    return _confirmed_prescriptions(target, db)
+    return _confirmed_prescriptions(profile, db)
 
 
 @router.post("/suggestions")
 def suggest_routine(
     body: RoutineRequest,
-    profile_oid: str | None = None,
-    owner: Profile = Depends(current_profile),
+    profile: Profile = Depends(_requested_active_profile),
     db: Session = Depends(get_db),
 ):
-    target = profile_for_owner(owner, db, profile_oid)
     context = {
-        "name": target.name,
-        "age": target.age,
-        "conditions_reported_by_user": target.conditions_text,
-        "allergies_reported_by_user": target.allergies_text,
+        "name": profile.name,
+        "age": profile.age,
+        "conditions_reported_by_user": profile.conditions_text,
+        "allergies_reported_by_user": profile.allergies_text,
     }
     try:
         plan = invoke_with_retry(structured(settings.TEXT_MODEL, RoutinePlan), [
@@ -211,17 +213,15 @@ def suggest_routine(
 
 @router.get("")
 def list_reminders(
-    profile_oid: str | None = None,
     include_inactive: bool = False,
-    owner: Profile = Depends(current_profile),
+    profile: Profile = Depends(_requested_active_profile),
     db: Session = Depends(get_db),
 ):
-    target = profile_for_owner(owner, db, profile_oid)
     query = select(HealthReminder).where(
-        HealthReminder.profile_id == target.id,
+        HealthReminder.profile_id == profile.id,
         or_(
             HealthReminder.document_id.is_(None),
-            HealthReminder.document_id.in_(confirmed_document_ids(target.id)),
+            HealthReminder.document_id.in_(confirmed_document_ids(profile.id)),
         ),
     )
     if not include_inactive:
@@ -235,25 +235,23 @@ def list_reminders(
 @router.post("", status_code=201)
 def create_reminder(
     body: ReminderCreate,
-    profile_oid: str | None = None,
-    owner: Profile = Depends(current_profile),
+    profile: Profile = Depends(_requested_active_profile),
     db: Session = Depends(get_db),
 ):
-    target = profile_for_owner(owner, db, profile_oid)
     if body.document_id is not None:
         from ..models import Document
 
         document = db.scalar(
             select(Document.id).where(
                 Document.id == body.document_id,
-                Document.profile_id == target.id,
+                Document.profile_id == profile.id,
                 Document.review_status == "confirmed",
             )
         )
         if document is None:
             raise HTTPException(status_code=404, detail="Source document not found")
     reminder = HealthReminder(
-        profile_id=target.id,
+        profile_id=profile.id,
         document_id=body.document_id,
         title=body.title.strip(),
         details=body.details.strip() or None if body.details else None,
@@ -275,11 +273,10 @@ def create_reminder(
 def update_reminder(
     reminder_id: int,
     body: ReminderUpdate,
-    profile_oid: str | None = None,
-    owner: Profile = Depends(current_profile),
+    profile: Profile = Depends(_requested_active_profile),
     db: Session = Depends(get_db),
 ):
-    reminder = _owned_reminder(reminder_id, owner, profile_oid, db)
+    reminder = _owned_reminder(reminder_id, profile, db)
     changes = body.model_dump(exclude_unset=True)
     if "due_at" in changes and changes["due_at"] is not None:
         value = changes["due_at"]
@@ -300,11 +297,10 @@ def update_reminder(
 @router.post("/{reminder_id}/complete")
 def complete_reminder(
     reminder_id: int,
-    profile_oid: str | None = None,
-    owner: Profile = Depends(current_profile),
+    profile: Profile = Depends(_requested_active_profile),
     db: Session = Depends(get_db),
 ):
-    reminder = _owned_reminder(reminder_id, owner, profile_oid, db)
+    reminder = _owned_reminder(reminder_id, profile, db)
     if reminder.recurrence == "none":
         reminder.status = "completed"
     else:
@@ -322,10 +318,12 @@ def complete_reminder(
 @router.delete("/{reminder_id}", status_code=204)
 def delete_reminder(
     reminder_id: int,
-    profile_oid: str | None = None,
-    owner: Profile = Depends(current_profile),
+    profile: Profile = Depends(_requested_active_profile),
     db: Session = Depends(get_db),
 ):
-    reminder = _owned_reminder(reminder_id, owner, profile_oid, db)
+    reminder = _owned_reminder(reminder_id, profile, db)
     db.delete(reminder)
     db.commit()
+
+
+

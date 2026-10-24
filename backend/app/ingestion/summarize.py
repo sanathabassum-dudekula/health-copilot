@@ -6,14 +6,14 @@ from ..config import settings
 from ..db import SessionLocal
 from ..models import Document, Profile
 from ..rules import safety_text
-from .llm import invoke_with_retry, structured
+from .llm import structured
 from .prompts import SUMMARY_PROMPT, SUMMARY_RETRY, TRANSLATE_PROMPT
 from .schemas import Summary
 
 log = logging.getLogger(__name__)
 CRITICAL_MSG = "This value is far outside the usual range. Please contact a doctor promptly."
 STATUS = {"L": "Low", "H": "High", "LL": "Critically low", "HH": "Critically high"}
-LANGS = {"hi": "Hindi", "te": "Telugu", "ta": "Tamil"}
+LANGS = {"hi": "Hindi", "te": "Telugu"}
 
 
 def _val(o: dict) -> str:
@@ -117,7 +117,7 @@ def build_summary(record: dict) -> dict:
         llm = structured(settings.TEXT_MODEL, Summary)
         for attempt in range(2):  # regenerate once on a banned phrase
             t0 = time.time()
-            out = invoke_with_retry(llm, prompt).model_dump()
+            out = llm.invoke(prompt).model_dump()
             log.info("summary call %s took %.1fs", attempt + 1, time.time() - t0)
             hits = safety_text.check(out)
             if not hits:
@@ -138,13 +138,7 @@ def build_summary(record: dict) -> dict:
 
 
 def translate_summary(summary: dict, lang: str) -> dict:
-    out = invoke_with_retry(
-        structured(settings.TEXT_MODEL, Summary),
-        TRANSLATE_PROMPT.format(
-            language=LANGS[lang],
-            summary=json.dumps(summary, ensure_ascii=False),
-        ),
-    )
+    out = structured(settings.TEXT_MODEL, Summary).invoke(TRANSLATE_PROMPT.format(language=LANGS[lang], summary=json.dumps(summary, ensure_ascii=False)))
     return out.model_dump()
 
 

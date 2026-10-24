@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+﻿from datetime import datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -6,8 +6,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
-from ..access import profile_for_owner
-from ..auth import current_profile
+from ..auth import active_profile
 from ..db import get_db
 from ..models import Profile, VitalSign
 
@@ -18,7 +17,7 @@ VitalSource = Literal["bluetooth", "manual"]
 UNITS = {
     "heart_rate": "bpm",
     "oxygen_saturation": "%",
-    "body_temperature": "°C",
+    "body_temperature": "Â°C",
 }
 RANGES = {
     "heart_rate": (20, 250),
@@ -55,13 +54,14 @@ def _vital_json(record: VitalSign) -> dict:
 def list_vitals(
     profile_oid: str | None = None,
     limit: int = Query(default=30, ge=1, le=100),
-    owner: Profile = Depends(current_profile),
+    profile: Profile = Depends(active_profile),
     db: Session = Depends(get_db),
 ):
-    target = profile_for_owner(owner, db, profile_oid)
+    if profile_oid is not None and profile_oid != profile.oid:
+        raise HTTPException(status_code=404, detail="Profile not found")
     records = db.scalars(
         select(VitalSign)
-        .where(VitalSign.profile_id == target.id)
+        .where(VitalSign.profile_id == profile.id)
         .order_by(desc(VitalSign.captured_at), desc(VitalSign.id))
         .limit(limit)
     )
@@ -72,10 +72,11 @@ def list_vitals(
 def create_vital(
     body: VitalSignCreate,
     profile_oid: str | None = None,
-    owner: Profile = Depends(current_profile),
+    profile: Profile = Depends(active_profile),
     db: Session = Depends(get_db),
 ):
-    target = profile_for_owner(owner, db, profile_oid)
+    if profile_oid is not None and profile_oid != profile.oid:
+        raise HTTPException(status_code=404, detail="Profile not found")
     lower, upper = RANGES[body.metric]
     if not lower <= body.value <= upper:
         raise HTTPException(
@@ -93,7 +94,7 @@ def create_vital(
         captured_at = captured_at.astimezone(timezone.utc).replace(tzinfo=None)
 
     record = VitalSign(
-        profile_id=target.id,
+        profile_id=profile.id,
         metric=body.metric,
         value=body.value,
         unit=UNITS[body.metric],
@@ -105,3 +106,4 @@ def create_vital(
     db.commit()
     db.refresh(record)
     return _vital_json(record)
+

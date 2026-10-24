@@ -1,12 +1,12 @@
-from collections import defaultdict
+﻿from collections import defaultdict
 from datetime import date
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..access import confirmed_document_ids, profile_for_owner
-from ..auth import current_profile
+from ..access import confirmed_document_ids
+from ..auth import active_profile
 from ..db import get_db
 from ..models import (
     Allergy,
@@ -24,10 +24,12 @@ ABNORMAL = {"L", "H", "LL", "HH"}
 @router.get("")
 def get_insights(
     profile_oid: str | None = None,
-    owner: Profile = Depends(current_profile),
+    profile: Profile = Depends(active_profile),
     db: Session = Depends(get_db),
 ):
-    profile = profile_for_owner(owner, db, profile_oid)
+    if profile_oid is not None and profile_oid != profile.oid:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
     observations = db.scalars(
         select(Observation)
         .where(
@@ -153,3 +155,4 @@ def get_insights(
         "medicine_reminder_suggestions": medicine_reminder_suggestions,
         "wellness": wellness,
     }
+

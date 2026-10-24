@@ -1,4 +1,4 @@
-const BASE = "/api";  // proxied to the backend by next.config.ts
+﻿const BASE = "/api";  // proxied to the backend by next.config.ts
 
 export function localDateTimeWithOffset(): string {
   const now = new Date();
@@ -59,8 +59,12 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
   const r = await fetch(BASE + path, { ...init, headers });
   if (!r.ok) {
     const payload = await r.json().catch(() => ({}));
-    const detail = payload.detail;  // 422s carry a list of field errors
-    const message = (Array.isArray(detail) ? detail[0]?.msg : detail) ?? r.statusText;
+    const detail = payload.detail;
+    const message = Array.isArray(detail)
+      ? detail[0]?.msg
+      : typeof detail === "object" && detail !== null
+        ? detail.message
+        : detail;
     throw new ApiRequestError(typeof message === "string" ? message : "Request failed", r.status);
   }
   return r.status === 204 ? (undefined as T) : r.json();
@@ -452,6 +456,7 @@ export type FamilyMember = {
   previous_records: string | null;
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
+  has_pin: boolean;
 };
 
 export type FamilyMemberFields = {
@@ -468,17 +473,70 @@ export type FamilyMemberFields = {
   emergency_contact_phone?: string | null;
 };
 
+export type FamilyMemberCreateFields = FamilyMemberFields & {
+  pin: string;
+};
+
+export type ActiveFamilyProfile = {
+  type: "owner" | "family";
+  active_profile: {
+    oid: string;
+    name: string;
+    has_pin?: boolean;
+  } & Partial<FamilyMember>;
+};
+
+export type FamilyInvitation = {
+  id: number;
+  phone_number: string;
+  relationship_label: string | null;
+  status: string;
+  created_at: string;
+  expires_at: string;
+  message?: string;
+};
 export const familyApi = {
   list: () => req<{ members: FamilyMember[] }>("/family"),
+  active: () => req<ActiveFamilyProfile>("/family/active"),
   get: (oid: string) =>
     req<FamilyMember>(`/family/${encodeURIComponent(oid)}`),
-  add: (body: FamilyMemberFields) =>
+  add: (body: FamilyMemberCreateFields) =>
     post<FamilyMember>("/family", body),
   update: (oid: string, body: Partial<FamilyMemberFields>) =>
     req<FamilyMember>(`/family/${encodeURIComponent(oid)}`, {
       method: "PUT",
       body: JSON.stringify(body),
     }),
+  setPin: (oid: string, pin: string) =>
+    post<{ message: string }>(`/family/${encodeURIComponent(oid)}/set-pin`, { pin }),
+  unlock: (oid: string, pin: string) =>
+    post<{ message: string; active_profile: FamilyMember }>(
+      `/family/${encodeURIComponent(oid)}/unlock`,
+      { pin },
+    ),
+  resetPin: (oid: string, accountPassword: string, newPin: string) =>
+    post<{ message: string }>(`/family/${encodeURIComponent(oid)}/reset-pin`, {
+      account_password: accountPassword,
+      new_pin: newPin,
+    }),
+  switchToOwner: () =>
+    post<{ message: string; active_profile: { oid: string; name: string } }>(
+      "/family/switch-to-owner",
+    ),
+  invitations: () =>
+    req<FamilyInvitation[]>("/family/invitations"),
+  createInvitation: (body: {
+    phone_number: string;
+    relationship_label?: string;
+  }) =>
+    post<FamilyInvitation>("/family/invitations", body),
+  cancelInvitation: (id: number) =>
+    req<{ ok: boolean; id: number; status: string }>(
+      `/family/invitations/${id}`,
+      { method: "DELETE" },
+    ),
   remove: (oid: string) =>
     req<void>(`/family/${encodeURIComponent(oid)}`, { method: "DELETE" }),
 };
+
+

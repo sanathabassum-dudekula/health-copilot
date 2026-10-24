@@ -1,4 +1,4 @@
-import base64
+﻿import base64
 import binascii
 import json
 import logging
@@ -14,8 +14,8 @@ from PIL import Image, UnidentifiedImageError
 from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
-from ..access import profile_for_owner
-from ..auth import current_profile
+from ..auth import active_profile
+
 from ..access import confirmed_document_ids
 from ..config import settings
 from ..db import SessionLocal, get_db
@@ -34,7 +34,7 @@ from ..models import (
 router = APIRouter(prefix="/assistant", tags=["assistant"])
 log = logging.getLogger(__name__)
 REMINDER_INTENT = re.compile(
-    r"\bremind(?:er)?\b|याद दिल|रिमाइंडर|గుర్తు చేయ|రిమైండర్|நினைவூட்ட",
+    r"\bremind(?:er)?\b|à¤¯à¤¾à¤¦ à¤¦à¤¿à¤²|à¤°à¤¿à¤®à¤¾à¤‡à¤‚à¤¡à¤°|à°—à±à°°à±à°¤à± à°šà±‡à°¯|à°°à°¿à°®à±ˆà°‚à°¡à°°à±|à®¨à®¿à®©à¯ˆà®µà¯‚à®Ÿà¯à®Ÿ",
     re.IGNORECASE,
 )
 
@@ -361,6 +361,15 @@ def _reminder_proposal(
         return None, True
 
 
+
+def _assert_active_profile(profile: Profile, requested_oid: str | None) -> Profile:
+    if requested_oid is not None and requested_oid != profile.oid:
+        raise HTTPException(
+            status_code=403,
+            detail="Unlock the requested family profile with its PIN before accessing it.",
+        )
+    return profile
+
 def _owned_conversation(
     db: Session, profile_id: int, conversation_id: int
 ) -> AssistantConversation:
@@ -378,10 +387,10 @@ def _owned_conversation(
 @router.get("/conversations")
 def conversations(
     profile_oid: str | None = None,
-    profile: Profile = Depends(current_profile),
+    profile: Profile = Depends(active_profile),
     db: Session = Depends(get_db),
 ):
-    profile = profile_for_owner(profile, db, profile_oid)
+    profile = _assert_active_profile(profile, profile_oid)
     saved = db.scalars(
         select(AssistantConversation)
         .where(AssistantConversation.profile_id == profile.id)
@@ -396,10 +405,10 @@ def conversations(
 @router.post("/conversations", status_code=201)
 def create_conversation(
     profile_oid: str | None = None,
-    profile: Profile = Depends(current_profile),
+    profile: Profile = Depends(active_profile),
     db: Session = Depends(get_db),
 ):
-    profile = profile_for_owner(profile, db, profile_oid)
+    profile = _assert_active_profile(profile, profile_oid)
     conversation = AssistantConversation(
         profile_id=profile.id,
         title="New health chat",
@@ -414,10 +423,10 @@ def create_conversation(
 def delete_conversation(
     conversation_id: int,
     profile_oid: str | None = None,
-    profile: Profile = Depends(current_profile),
+    profile: Profile = Depends(active_profile),
     db: Session = Depends(get_db),
 ):
-    profile = profile_for_owner(profile, db, profile_oid)
+    profile = _assert_active_profile(profile, profile_oid)
     conversation = _owned_conversation(db, profile.id, conversation_id)
     db.delete(conversation)
     db.commit()
@@ -427,10 +436,10 @@ def delete_conversation(
 def history(
     conversation_id: int | None = None,
     profile_oid: str | None = None,
-    profile: Profile = Depends(current_profile),
+    profile: Profile = Depends(active_profile),
     db: Session = Depends(get_db),
 ):
-    profile = profile_for_owner(profile, db, profile_oid)
+    profile = _assert_active_profile(profile, profile_oid)
     query = select(StoredMessage).where(StoredMessage.profile_id == profile.id)
     if conversation_id is not None:
         _owned_conversation(db, profile.id, conversation_id)
@@ -442,10 +451,10 @@ def history(
 @router.delete("/history", status_code=204)
 def clear_history(
     profile_oid: str | None = None,
-    profile: Profile = Depends(current_profile),
+    profile: Profile = Depends(active_profile),
     db: Session = Depends(get_db),
 ):
-    profile = profile_for_owner(profile, db, profile_oid)
+    profile = _assert_active_profile(profile, profile_oid)
     db.execute(
         delete(StoredMessage).where(StoredMessage.profile_id == profile.id)
     )
@@ -460,10 +469,10 @@ def clear_history(
 @router.post("/chat")
 def chat(
     body: ChatRequest,
-    profile: Profile = Depends(current_profile),
+    profile: Profile = Depends(active_profile),
     db: Session = Depends(get_db),
 ):
-    profile = profile_for_owner(profile, db, body.profile_oid)
+    profile = _assert_active_profile(profile, body.profile_oid)
     health_context = _health_context(profile, db)
     profile_id = profile.id
     document_context = None
@@ -667,3 +676,4 @@ def chat(
         "reminder_proposal_error": reminder_proposal_error,
         "messages": result,
     }
+

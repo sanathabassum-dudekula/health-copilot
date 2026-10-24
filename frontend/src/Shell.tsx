@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -19,7 +19,7 @@ const NAV: { to: string; icon: IconName; key: string }[] = [
   { to: "/upload", icon: "upload", key: "upload" },
   { to: "/timeline", icon: "activity", key: "timeline" },
   { to: "/reminders", icon: "bell", key: "reminders" },
-  { to: "/profiles", icon: "users", key: "profiles" },
+  { to: "/settings", icon: "users", key: "settings" },
   { to: "/devices", icon: "heart", key: "devices" },
   { to: "/profile", icon: "user", key: "profile" },
   { to: "/abha", icon: "shield", key: "abha" },
@@ -197,7 +197,7 @@ function Layout({ children }: { children: ReactNode }) {
           <Link href="/abha" className="card block space-y-1 p-3.5 transition hover:border-brand/40">
             <p className="eyebrow flex items-center gap-1.5"><Icon name="shield" className="h-3.5 w-3.5" />{t("yourAbha")}</p>
             <p className={`text-sm font-semibold ${abha?.linked ? "text-ok" : "text-muted"}`}>
-              {abha?.linked ? `ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ ${t("abhaLinked")}` : abha?.number || abha?.address ? t("abhaPending") : t("abhaNotLinked")}
+              {abha?.linked ? `ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ ${t("abhaLinked")}` : abha?.number || abha?.address ? t("abhaPending") : t("abhaNotLinked")}
             </p>
           </Link>
           {account && (
@@ -249,3 +249,4 @@ function Layout({ children }: { children: ReactNode }) {
 export default function Shell({ children }: { children: ReactNode }) {
   return <ToastProvider><Layout>{children}</Layout></ToastProvider>;
 }
+

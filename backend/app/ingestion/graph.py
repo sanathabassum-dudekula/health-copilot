@@ -8,7 +8,7 @@ from langchain_core.messages import HumanMessage
 from ..config import settings
 from ..db import SessionLocal
 from ..models import Allergy, Condition, Document, Medication, Observation
-from .llm import invoke_with_retry, structured
+from .llm import structured
 from .normalize import normalize
 from .prepare import prepare
 from .prompts import EXTRACT_PROMPT
@@ -27,10 +27,7 @@ def extract(state):
     content = [{"type": "text", "text": EXTRACT_PROMPT.format(text_layer=state["text_layer"] or "none")}]
     content += [_image_block(p) for p in state["page_paths"]]
     t0 = time.time()
-    result = invoke_with_retry(
-        structured(settings.VISION_MODEL, DocumentExtraction),
-        [HumanMessage(content=content)],
-    )
+    result = structured(settings.VISION_MODEL, DocumentExtraction).invoke([HumanMessage(content=content)])
     log.info("extract took %.1fs", time.time() - t0)
     if result is None:
         raise ValueError("model returned no structured output")

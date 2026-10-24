@@ -116,10 +116,3 @@ class Summary(BaseModel):
     abnormal_explanations: list[AbnormalExplanation] = []
     medicines_explained: list[MedicineExplained] = []
     next_steps: list[str] = []
-    
-class DocumentClassification(BaseModel):
-    """Screen an upload before accepting it as a medical record."""
-    is_medical: bool
-    confidence: float = Field(ge=0, le=1)
-    reason: str
-

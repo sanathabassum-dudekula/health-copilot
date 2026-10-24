@@ -1,4 +1,4 @@
-﻿
+
 import os
 from pathlib import Path
 
@@ -14,7 +14,7 @@ MIN_PAGE_TEXT = 200
 TEMP_ROOT = Path("/tmp/curamind")
 
 
-def prepare_file(src: Path, mime: str, out: Path, render_all_pages: bool = False) -> tuple[list[str], str]:
+def prepare_file(src: Path, mime: str, out: Path) -> tuple[list[str], str]:
     """Create temporary page images and extract the PDF text layer."""
     out.mkdir(parents=True, exist_ok=True)
     paths, text = [], []
@@ -28,7 +28,7 @@ def prepare_file(src: Path, mime: str, out: Path, render_all_pages: bool = False
                 page_text = page.get_text()
                 text.append(page_text)
 
-                if render_all_pages or len(page_text.strip()) < MIN_PAGE_TEXT:
+                if len(page_text.strip()) < MIN_PAGE_TEXT:
                     image_path = out / f"page{i}.jpg"
                     page.get_pixmap(dpi=DPI).save(str(image_path))
                     paths.append(str(image_path))
@@ -67,4 +67,3 @@ def prepare(state):
         "page_paths": paths,
         "text_layer": text,
     }
-
