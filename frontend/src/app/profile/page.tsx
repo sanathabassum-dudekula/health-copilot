@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { api, Profile, WomensHealthProfile } from "@/api";
+import Icon from "@/components/Icon";
 import { useProfile } from "@/Shell";
 import { LANGS, Lang } from "@/i18n";
 import { useToast } from "@/components/Toast";
@@ -292,36 +293,54 @@ export default function ProfilePage() {
       </section>
 
       <section className="card p-5 sm:p-7">
-        <div>
-          <h2 className="text-lg font-semibold">{t("profile.womensHealthTitle")}</h2>
-          <p className="mt-1 text-sm text-muted">{t("profile.womensHealthDescription")}</p>
+        <div className="relative overflow-hidden rounded-2xl border border-rose-200/70 bg-gradient-to-br from-rose-50 via-white to-brand-soft p-5 sm:p-6">
+          <div className="relative z-10 max-w-3xl">
+            <p className="eyebrow flex items-center gap-2 text-rose-700">
+              <Icon name="heart" className="h-4 w-4" />
+              {t("profile.womensHealthTitle")}
+            </p>
+            <h2 className="mt-2 text-xl font-semibold text-ink sm:text-2xl">{t("profile.womensHealthHeading")}</h2>
+            <p className="mt-2 text-sm leading-6 text-muted">{t("profile.womensHealthDescription")}</p>
+            <p className="mt-2 text-xs leading-5 text-muted">{t("profile.womensHealthPrivacy")}</p>
+          </div>
+          <Icon name="sparkles" className="absolute -right-2 -top-3 h-24 w-24 text-rose-200/70" />
         </div>
         <form onSubmit={handleWomensHealthSubmit} className="mt-5 space-y-5">
           <div className="grid gap-3 sm:grid-cols-2">
             {([
-              ["cycle_tracker_enabled", "cycleTracker", "cycleTrackerDescription"],
-              ["pregnancy_tracker_enabled", "pregnancyTracker", "pregnancyTrackerDescription"],
-              ["menopause_fertility_enabled", "menopauseFertility", "menopauseFertilityDescription"],
-              ["screening_enabled", "screening", "screeningDescription"],
-            ] as const).map(([feature, title, description]) => (
-              <label key={feature} className="flex items-start gap-3 rounded-xl border border-line p-3 text-sm">
+              ["cycle_tracker_enabled", "cycleTracker", "cycleTrackerDescription", "calendar"],
+              ["pregnancy_tracker_enabled", "pregnancyTracker", "pregnancyTrackerDescription", "heart"],
+              ["menopause_fertility_enabled", "menopauseFertility", "menopauseFertilityDescription", "sparkles"],
+              ["screening_enabled", "screening", "screeningDescription", "shield"],
+            ] as const).map(([feature, title, description, icon]) => (
+              <label
+                key={feature}
+                className={`group flex cursor-pointer items-start gap-3 rounded-2xl border p-4 text-sm transition hover:-translate-y-0.5 hover:shadow-card ${
+                  womensHealth[feature]
+                    ? "border-rose-300 bg-rose-50/70 ring-1 ring-rose-200"
+                    : "border-line bg-surface hover:border-rose-200"
+                }`}
+              >
                 <input
                   type="checkbox"
                   checked={womensHealth[feature]}
                   onChange={(event) => setWomenFeature(feature, event.target.checked)}
-                  className="mt-1"
+                  className="mt-1 h-4 w-4 accent-rose-600"
                 />
                 <span>
-                  <span className="block font-medium">{t(`profile.${title}`)}</span>
-                  <span className="mt-1 block text-xs font-normal text-muted">{t(`profile.${description}`)}</span>
+                  <span className="flex items-center gap-2 font-semibold text-ink">
+                    <Icon name={icon} className="h-4 w-4 text-rose-700" />
+                    {t(`profile.${title}`)}
+                  </span>
+                  <span className="mt-1.5 block text-xs font-normal leading-5 text-muted">{t(`profile.${description}`)}</span>
                 </span>
               </label>
             ))}
           </div>
 
           {womensHealth.cycle_tracker_enabled && (
-            <fieldset className="space-y-3 rounded-xl border border-line p-4">
-              <legend className="px-1 text-sm font-semibold">{t("profile.cycleTracker")}</legend>
+            <fieldset className="space-y-4 rounded-2xl border border-rose-200 bg-rose-50/30 p-4 sm:p-5">
+              <legend className="px-2 text-sm font-semibold text-rose-900">{t("profile.cycleTracker")}</legend>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="text-sm">
                   {t("profile.periodStartDate")}
@@ -373,8 +392,8 @@ export default function ProfilePage() {
           )}
 
           {womensHealth.pregnancy_tracker_enabled && (
-            <fieldset className="space-y-3 rounded-xl border border-line p-4">
-              <legend className="px-1 text-sm font-semibold">{t("profile.pregnancyTracker")}</legend>
+            <fieldset className="space-y-3 rounded-2xl border border-rose-200 bg-rose-50/30 p-4 sm:p-5">
+              <legend className="px-2 text-sm font-semibold text-rose-900">{t("profile.pregnancyTracker")}</legend>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="text-sm">
                   {t("profile.pregnancyStatus")}
@@ -407,8 +426,8 @@ export default function ProfilePage() {
           )}
 
           {womensHealth.menopause_fertility_enabled && (
-            <fieldset className="space-y-3 rounded-xl border border-line p-4">
-              <legend className="px-1 text-sm font-semibold">{t("profile.menopauseFertility")}</legend>
+            <fieldset className="space-y-3 rounded-2xl border border-rose-200 bg-rose-50/30 p-4 sm:p-5">
+              <legend className="px-2 text-sm font-semibold text-rose-900">{t("profile.menopauseFertility")}</legend>
               <label className="block text-sm">
                 {t("profile.menopauseNotes")}
                 <textarea className="input mt-1 w-full" rows={3} maxLength={2000} value={womensHealth.menopause_notes ?? ""} onChange={(event) => setWomensHealth((current) => ({ ...current, menopause_notes: event.target.value || null }))} />
@@ -421,8 +440,8 @@ export default function ProfilePage() {
           )}
 
           {womensHealth.screening_enabled && (
-            <fieldset className="space-y-3 rounded-xl border border-line p-4">
-              <legend className="px-1 text-sm font-semibold">{t("profile.screening")}</legend>
+            <fieldset className="space-y-3 rounded-2xl border border-rose-200 bg-rose-50/30 p-4 sm:p-5">
+              <legend className="px-2 text-sm font-semibold text-rose-900">{t("profile.screening")}</legend>
               <label className="block text-sm">
                 {t("profile.cervicalScreening")}
                 <textarea className="input mt-1 w-full" rows={3} maxLength={2000} value={womensHealth.cervical_screening_notes ?? ""} onChange={(event) => setWomensHealth((current) => ({ ...current, cervical_screening_notes: event.target.value || null }))} />

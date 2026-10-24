@@ -20,6 +20,7 @@ const NAV: { to: string; icon: IconName; key: string }[] = [
   { to: "/timeline", icon: "activity", key: "timeline" },
   { to: "/reminders", icon: "bell", key: "reminders" },
   { to: "/settings", icon: "users", key: "familyAccess" },
+  { to: "/emergency", icon: "shield", key: "emergencyCard" },
   { to: "/devices", icon: "heart", key: "devices" },
   { to: "/profile", icon: "user", key: "profile" },
   { to: "/abha", icon: "shield", key: "abha" },
@@ -235,7 +236,7 @@ function Layout({ children }: { children: ReactNode }) {
         {!authChecking && !down && !authPage && <PageAssistant pathname={path} profile={profile} />}
       </div>
 
-      {path !== "/" && !authPage && !assistantPage && (<nav aria-label={t("auth.primaryNav")} className="no-print fixed inset-x-3 bottom-3 z-40 grid grid-cols-8 gap-0.5 rounded-2xl border border-line bg-surface/95 p-1 shadow-card backdrop-blur md:hidden">
+      {path !== "/" && !authPage && !assistantPage && (<nav aria-label={t("auth.primaryNav")} className="no-print fixed inset-x-3 bottom-3 z-40 grid grid-cols-9 gap-0.5 rounded-2xl border border-line bg-surface/95 p-1 shadow-card backdrop-blur md:hidden">
         {NAV.map((n) => (
           <Link key={n.to} href={n.to}
             className={`flex min-w-0 flex-col items-center gap-0.5 rounded-lg py-2 text-[9px] font-semibold ${active(n) ? "bg-brand-soft text-brand-strong" : "text-muted"}`}>
