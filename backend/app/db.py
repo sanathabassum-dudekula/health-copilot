@@ -128,6 +128,26 @@ def init_db():
                     "ALTER TABLE auth_sessions ADD COLUMN active_profile_id INTEGER"
                 )
 
+        if inspector.has_table("family_invitations"):
+            columns = {
+                column["name"]
+                for column in inspector.get_columns("family_invitations")
+            }
+            if "delivery_status" not in columns:
+                conn.exec_driver_sql(
+                    "ALTER TABLE family_invitations ADD COLUMN delivery_status "
+                    "VARCHAR(16) NOT NULL DEFAULT 'not_sent'"
+                )
+            if "token_hash" not in columns:
+                conn.exec_driver_sql(
+                    "ALTER TABLE family_invitations ADD COLUMN token_hash VARCHAR(64)"
+                )
+            conn.exec_driver_sql(
+                "CREATE UNIQUE INDEX IF NOT EXISTS "
+                "ix_family_invitations_token_hash "
+                "ON family_invitations (token_hash)"
+            )
+
     Base.metadata.create_all(engine)
 
     with SessionLocal.begin() as session:

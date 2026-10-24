@@ -1,6 +1,7 @@
 import re
 from datetime import date, datetime, timedelta, timezone
-from secrets import token_hex
+from secrets import token_hex, token_urlsafe
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
@@ -12,10 +13,13 @@ from ..auth import (
     SESSION_COOKIE,
     get_auth_session,
     hash_password,
+    token_digest,
     verify_password,
 )
+from ..config import settings
 from ..db import get_db
 from ..models import AuthSession, FamilyInvitation, FamilyLink, Profile, User
+from ..sms import SmsConfigurationError, SmsDeliveryError, send_twilio_sms
 
 router = APIRouter(prefix="/family", tags=["family"])
 PIN_ATTEMPT_LIMIT = 5
@@ -77,6 +81,8 @@ class InvitationCreate(BaseModel):
         digits = re.sub(r"\D", "", value)
         if not 8 <= len(digits) <= 15:
             raise ValueError("Phone number must contain 8 to 15 digits")
+        if not value.startswith("+"):
+            raise ValueError("Use an international phone number beginning with +")
         return value
 
     @field_validator("relationship_label")
@@ -88,8 +94,18 @@ class InvitationCreate(BaseModel):
         return value or None
 
 
+class InvitationAccept(BaseModel):
+    token: str = Field(min_length=40, max_length=128)
+
+
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def _signed_in_owner(
@@ -152,23 +168,79 @@ def _set_pin(member: Profile, pin: str) -> None:
 
 
 def _invitation_json(invitation: FamilyInvitation) -> dict:
-    created_at = invitation.created_at
-    if created_at.tzinfo is None:
-        created_at = created_at.replace(tzinfo=timezone.utc)
-    expires_at = invitation.expires_at
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    created_at = _as_utc(invitation.created_at)
+    expires_at = _as_utc(invitation.expires_at)
     status = invitation.status
-    if status == "pending" and invitation.expires_at <= _utcnow():
+    if status == "pending" and expires_at <= datetime.now(timezone.utc):
         status = "expired"
     return {
         "id": invitation.id,
         "phone_number": invitation.phone_number,
         "relationship_label": invitation.relationship_label,
         "status": status,
+        "delivery_status": invitation.delivery_status,
         "created_at": created_at.isoformat(),
         "expires_at": expires_at.isoformat(),
     }
+
+
+def _send_invitation(db: Session, invitation: FamilyInvitation, token: str) -> None:
+    app_url = settings.PUBLIC_APP_URL.strip().rstrip("/")
+    if not app_url.startswith(("https://", "http://")):
+        invitation.delivery_status = "failed"
+        invitation.token_hash = None
+        db.commit()
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "The invitation was saved, but the app link is misconfigured.",
+                "invitation_saved": True,
+                "invitation_id": invitation.id,
+            },
+        )
+
+    accept_url = f"{app_url}/family/accept?token={quote(token)}"
+    message = (
+        "You have a CuraMind family invitation. "
+        f"Accept it securely here: {accept_url} "
+        "This link expires in 30 days and can only be used once."
+    )
+    try:
+        send_twilio_sms(invitation.phone_number, message)
+    except SmsConfigurationError as error:
+        invitation.delivery_status = "not_configured"
+        invitation.token_hash = None
+        db.commit()
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": (
+                    "The invitation was saved, but SMS delivery is not configured. "
+                    "Add the Twilio production variables and retry."
+                ),
+                "invitation_saved": True,
+                "invitation_id": invitation.id,
+            },
+        ) from error
+    except SmsDeliveryError as error:
+        invitation.delivery_status = "failed"
+        invitation.token_hash = None
+        db.commit()
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": (
+                    "The invitation was saved, but Twilio could not send the SMS. "
+                    "Check the number and Twilio settings, then retry."
+                ),
+                "invitation_saved": True,
+                "invitation_id": invitation.id,
+            },
+        ) from error
+
+    invitation.delivery_status = "sent"
+    db.commit()
+    db.refresh(invitation)
 
 
 @router.get("")
@@ -262,6 +334,57 @@ def list_invitations(
         .order_by(FamilyInvitation.created_at.desc(), FamilyInvitation.id.desc())
     ).all()
     return [_invitation_json(invitation) for invitation in invitations]
+
+
+@router.post("/invitations/accept")
+def accept_invitation(
+    body: InvitationAccept,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    _, user, _ = _signed_in_owner(request, db)
+    invitation = db.scalar(
+        select(FamilyInvitation)
+        .where(FamilyInvitation.token_hash == token_digest(body.token))
+        .with_for_update()
+    )
+    if invitation is None:
+        raise HTTPException(status_code=404, detail="Invitation link is invalid or expired.")
+    if invitation.status != "pending":
+        raise HTTPException(status_code=409, detail="This invitation is no longer available.")
+    if invitation.delivery_status != "sent":
+        raise HTTPException(status_code=409, detail="This invitation has not been sent.")
+    if invitation.owner_user_id == user.id:
+        raise HTTPException(status_code=409, detail="You cannot accept your own invitation.")
+    if _as_utc(invitation.expires_at) <= datetime.now(timezone.utc):
+        invitation.status = "expired"
+        invitation.token_hash = None
+        db.commit()
+        raise HTTPException(status_code=410, detail="This invitation has expired.")
+
+    existing_link = db.scalar(
+        select(FamilyLink.id).where(
+            FamilyLink.owner_user_id == invitation.owner_user_id,
+            FamilyLink.member_user_id == user.id,
+        )
+    )
+    if existing_link is not None:
+        raise HTTPException(status_code=409, detail="This account is already linked.")
+
+    db.add(
+        FamilyLink(
+            owner_user_id=invitation.owner_user_id,
+            member_user_id=user.id,
+        )
+    )
+    invitation.status = "accepted"
+    invitation.token_hash = None
+    try:
+        db.commit()
+    except IntegrityError as error:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="This invitation was already accepted.") from error
+    return {"ok": True, "message": "Family invitation accepted."}
 
 
 @router.get("/{oid}")
@@ -401,14 +524,60 @@ def create_invitation(
         phone_number=body.phone_number,
         relationship_label=body.relationship_label,
         status="pending",
-        expires_at=_utcnow() + INVITATION_LIFETIME,
+        delivery_status="sending",
+        token_hash=None,
+        expires_at=datetime.now(timezone.utc) + INVITATION_LIFETIME,
     )
+    token = token_urlsafe(32)
+    invitation.token_hash = token_digest(token)
     db.add(invitation)
     db.commit()
     db.refresh(invitation)
+    _send_invitation(db, invitation, token)
     return {
         **_invitation_json(invitation),
-        "message": "Invitation saved as pending. No SMS was sent; phone verification is not enabled yet.",
+        "message": "Invitation SMS sent. The secure link expires in 30 days.",
+    }
+
+
+@router.post("/invitations/{invitation_id}/send")
+def resend_invitation(
+    invitation_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    _, user, _ = _signed_in_owner(request, db)
+    invitation = db.scalar(
+        select(FamilyInvitation)
+        .where(
+            FamilyInvitation.id == invitation_id,
+            FamilyInvitation.owner_user_id == user.id,
+        )
+        .with_for_update()
+    )
+    if invitation is None:
+        raise HTTPException(status_code=404, detail="Invitation not found.")
+    if invitation.status != "pending":
+        raise HTTPException(status_code=409, detail="This invitation is no longer pending.")
+    if invitation.delivery_status == "sending":
+        raise HTTPException(status_code=409, detail="This invitation is already being sent.")
+    if invitation.delivery_status == "sent":
+        raise HTTPException(status_code=409, detail="This invitation was already sent.")
+    if _as_utc(invitation.expires_at) <= datetime.now(timezone.utc):
+        invitation.status = "expired"
+        invitation.token_hash = None
+        db.commit()
+        raise HTTPException(status_code=410, detail="This invitation has expired.")
+
+    token = token_urlsafe(32)
+    invitation.token_hash = token_digest(token)
+    invitation.delivery_status = "sending"
+    db.commit()
+    db.refresh(invitation)
+    _send_invitation(db, invitation, token)
+    return {
+        **_invitation_json(invitation),
+        "message": "Invitation SMS sent. The secure link expires in 30 days.",
     }
 
 
@@ -429,6 +598,7 @@ def cancel_invitation(
         raise HTTPException(status_code=404, detail="Invitation not found.")
     if invitation.status == "pending":
         invitation.status = "cancelled"
+        invitation.token_hash = None
         db.commit()
     return {"ok": True, "id": invitation.id, "status": invitation.status}
 

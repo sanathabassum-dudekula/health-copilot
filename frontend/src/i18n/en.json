@@ -9,6 +9,7 @@
     "assistant": "Assistant",
     "reminders": "Reminders",
     "profiles": "Profiles",
+    "familyAccess": "Family & Access",
     "devices": "Vitals & devices",
     "abha": "ABHA",
     "profile": "Profile"
@@ -287,6 +288,20 @@
     "abhaAddress": "ABHA address",
     "demoDisclaimer": "The current ABHA flow uses demo verification and does not establish real identity verification.",
     "manageAbha": "Manage ABHA"
+  },
+  "familyInvite": {
+    "eyebrow": "Family invitation",
+    "title": "Accept a family invitation",
+    "description": "Sign in or create a CuraMind account to accept this secure, one-time invitation link.",
+    "checking": "Checking your sign-in...",
+    "invalidLink": "This invitation link is missing its token.",
+    "signIn": "Sign in",
+    "createAccount": "Create account",
+    "accept": "Accept invitation",
+    "accepting": "Accepting...",
+    "accepted": "Invitation accepted. The family profile is now available in Family & Access.",
+    "openFamilyAccess": "Open Family & Access",
+    "error": "Could not accept this invitation."
   },
   "home": {
     "brand": "Your Health, Clearly Connected",

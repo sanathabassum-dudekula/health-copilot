@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     VAPID_PRIVATE_KEY: str = ""
     VAPID_SUBJECT: str = ""
     CRON_SECRET: str = ""
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_FROM_NUMBER: str = ""
+    TWILIO_MESSAGING_SERVICE_SID: str = ""
+    PUBLIC_APP_URL: str = "https://health-copilot-eight.vercel.app"
 
     # S3-compatible medical document storage
     AWS_ENDPOINT_URL_S3: str = ""

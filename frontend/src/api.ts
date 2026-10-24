@@ -514,6 +514,7 @@ export type FamilyInvitation = {
   phone_number: string;
   relationship_label: string | null;
   status: string;
+  delivery_status: "not_sent" | "sending" | "sent" | "failed" | "not_configured";
   created_at: string;
   expires_at: string;
   message?: string;
@@ -553,6 +554,10 @@ export const familyApi = {
     relationship_label?: string;
   }) =>
     post<FamilyInvitation>("/family/invitations", body),
+  sendInvitation: (id: number) =>
+    post<FamilyInvitation>(`/family/invitations/${id}/send`),
+  acceptInvitation: (token: string) =>
+    post<{ ok: boolean; message: string }>("/family/invitations/accept", { token }),
   cancelInvitation: (id: number) =>
     req<{ ok: boolean; id: number; status: string }>(
       `/family/invitations/${id}`,

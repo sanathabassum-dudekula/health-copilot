@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { api } from "../../api";
 import Icon from "../../components/Icon";
+import { safeNextPath } from "../../navigation";
 
 const REMEMBERED_EMAIL_KEY = "curamind-remembered-email";
 
@@ -46,7 +47,7 @@ export default function LoginPage() {
       } catch {
         // Authentication should not depend on optional browser storage.
       }
-      router.replace("/");
+      router.replace(safeNextPath());
     } catch (e) {
       setError(e instanceof Error && e.message === "Incorrect email or password."
         ? t("auth.invalidCredentials")

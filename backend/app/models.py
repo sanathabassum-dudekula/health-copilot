@@ -407,6 +407,12 @@ class FamilyInvitation(Base):
     status: Mapped[str] = mapped_column(
         String(16), default="pending", server_default="pending", index=True
     )
+    delivery_status: Mapped[str] = mapped_column(
+        String(16), default="not_sent", server_default="not_sent", nullable=False
+    )
+    token_hash: Mapped[str | None] = mapped_column(
+        String(64), unique=True, index=True, nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

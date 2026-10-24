@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -19,7 +19,7 @@ const NAV: { to: string; icon: IconName; key: string }[] = [
   { to: "/upload", icon: "upload", key: "upload" },
   { to: "/timeline", icon: "activity", key: "timeline" },
   { to: "/reminders", icon: "bell", key: "reminders" },
-  { to: "/settings", icon: "users", key: "settings" },
+  { to: "/settings", icon: "users", key: "familyAccess" },
   { to: "/devices", icon: "heart", key: "devices" },
   { to: "/profile", icon: "user", key: "profile" },
   { to: "/abha", icon: "shield", key: "abha" },
@@ -249,4 +249,3 @@ function Layout({ children }: { children: ReactNode }) {
 export default function Shell({ children }: { children: ReactNode }) {
   return <ToastProvider><Layout>{children}</Layout></ToastProvider>;
 }
-

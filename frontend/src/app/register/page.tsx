@@ -5,6 +5,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { api } from "../../api";
+import { safeNextPath } from "../../navigation";
 
 export default function RegisterPage() {
   const { t } = useTranslation();
@@ -36,7 +37,7 @@ export default function RegisterPage() {
         email: email.trim(),
         password,
       });
-      router.replace("/");
+      router.replace(safeNextPath());
     } catch (e) {
       if (e instanceof Error && e.message === "Enter a valid email address.") {
         setError(t("auth.invalidEmail"));

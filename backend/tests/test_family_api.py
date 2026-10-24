@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import re
 import uuid
 
 from fastapi.testclient import TestClient
@@ -14,6 +15,10 @@ from app.models import (
     Profile,
     User,
 )
+from app.auth import token_digest
+from app.routers import family
+from app.routers.family import _invitation_json
+from app.sms import SmsConfigurationError
 
 
 def _register(client: TestClient) -> str:
@@ -26,7 +31,29 @@ def _register(client: TestClient) -> str:
     return email
 
 
-def test_family_profile_pin_and_invitation_flows():
+def test_invitation_json_normalizes_timezone_aware_datetimes():
+    now = datetime.now(timezone.utc)
+    invitation = FamilyInvitation(
+        id=1,
+        owner_user_id=1,
+        phone_number="+15551234567",
+        status="pending",
+        created_at=now,
+        expires_at=now + timedelta(days=30),
+    )
+
+    serialized = _invitation_json(invitation)
+
+    assert serialized["status"] == "pending"
+    assert serialized["created_at"].endswith("+00:00")
+    assert serialized["expires_at"].endswith("+00:00")
+
+    invitation.expires_at = now - timedelta(seconds=1)
+    assert _invitation_json(invitation)["status"] == "expired"
+
+
+def test_family_profile_pin_and_invitation_flows(monkeypatch):
+    monkeypatch.setattr(family, "send_twilio_sms", lambda _phone, _message: None)
     with TestClient(app) as client:
         _register(client)
         created = client.post(
@@ -94,7 +121,8 @@ def test_family_profile_pin_and_invitation_flows():
         assert invitation.status_code == 201, invitation.text
         invitation_data = invitation.json()
         assert invitation_data["status"] == "pending"
-        assert "No SMS was sent" in invitation_data["message"]
+        assert invitation_data["delivery_status"] == "sent"
+        assert "SMS sent" in invitation_data["message"]
         listed_invitations = client.get("/family/invitations")
         assert listed_invitations.status_code == 200
         assert listed_invitations.json()[0]["id"] == invitation_data["id"]
@@ -110,6 +138,74 @@ def test_family_profile_pin_and_invitation_flows():
 
         assert client.delete(f"/family/{member['oid']}").status_code == 204
         assert client.get("/family").json()["members"] == []
+
+
+def test_family_invitation_secure_link_is_single_use(monkeypatch):
+    sent_messages: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        family,
+        "send_twilio_sms",
+        lambda phone, message: sent_messages.append((phone, message)),
+    )
+    with TestClient(app) as owner_client:
+        _register(owner_client)
+        created = owner_client.post(
+            "/family/invitations",
+            json={"phone_number": "+1 (555) 123-4567"},
+        )
+        assert created.status_code == 201, created.text
+        assert len(sent_messages) == 1
+        assert sent_messages[0][0] == "+1 (555) 123-4567"
+        token_match = re.search(
+            r"/family/accept\?token=([A-Za-z0-9_-]+)", sent_messages[0][1]
+        )
+        assert token_match is not None
+        token = token_match.group(1)
+        invitation_id = created.json()["id"]
+
+        with SessionLocal() as db:
+            invitation = db.get(FamilyInvitation, invitation_id)
+            assert invitation is not None
+            assert invitation.token_hash == token_digest(token)
+            assert token not in invitation.token_hash
+
+        with TestClient(app) as invitee_client:
+            _register(invitee_client)
+            accepted = invitee_client.post(
+                "/family/invitations/accept", json={"token": token}
+            )
+            assert accepted.status_code == 200, accepted.text
+            assert invitee_client.post(
+                "/family/invitations/accept", json={"token": token}
+            ).status_code == 404
+
+        invitation = owner_client.get("/family/invitations").json()[0]
+        assert invitation["status"] == "accepted"
+        assert invitation["delivery_status"] == "sent"
+        assert owner_client.get("/family").json()["members"][0]["name"] == "Owner"
+
+
+def test_invitation_is_saved_when_sms_is_unconfigured_and_can_be_retried(monkeypatch):
+    def fail_configuration(_phone, _message):
+        raise SmsConfigurationError("SMS provider is not configured.")
+
+    monkeypatch.setattr(family, "send_twilio_sms", fail_configuration)
+    with TestClient(app) as client:
+        _register(client)
+        response = client.post(
+            "/family/invitations",
+            json={"phone_number": "+1 (555) 123-4567"},
+        )
+        assert response.status_code == 503
+        assert response.json()["detail"]["invitation_saved"] is True
+        invitation = client.get("/family/invitations").json()[0]
+        assert invitation["status"] == "pending"
+        assert invitation["delivery_status"] == "not_configured"
+
+        monkeypatch.setattr(family, "send_twilio_sms", lambda _phone, _message: None)
+        sent = client.post(f"/family/invitations/{invitation['id']}/send")
+        assert sent.status_code == 200, sent.text
+        assert sent.json()["delivery_status"] == "sent"
 
 
 def test_family_pin_lockout_and_owner_isolation():
@@ -234,7 +330,8 @@ def test_profile_and_document_routes_follow_active_family_profile():
             ) is None
 
 
-def test_account_deletion_revokes_sessions_and_removes_family_links():
+def test_account_deletion_revokes_sessions_and_removes_family_links(monkeypatch):
+    monkeypatch.setattr(family, "send_twilio_sms", lambda _phone, _message: None)
     with TestClient(app) as client:
         owner_email = _register(client)
         member = client.post(

@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useTranslation } from "react-i18next";
 import {
   api,
   ApiRequestError,
@@ -13,6 +14,7 @@ import {
 } from "@/api";
 
 export default function SettingsPage() {
+  const { t } = useTranslation();
   const [members, setMembers] = useState<FamilyMember[]>([]);
   const [active, setActive] = useState<ActiveFamilyProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -98,8 +100,8 @@ export default function SettingsPage() {
 
     const phone = invitePhone.trim();
     const digits = phone.replace(/\D/g, "");
-    if (digits.length < 8 || digits.length > 15) {
-      setError("Enter a phone number containing 8 to 15 digits.");
+    if (!phone.startsWith("+") || digits.length < 8 || digits.length > 15) {
+      setError("Enter an international phone number beginning with + and containing 8 to 15 digits.");
       return;
     }
 
@@ -109,15 +111,72 @@ export default function SettingsPage() {
         phone_number: phone,
         relationship_label: inviteRelationship.trim() || undefined,
       });
-      await refresh();
       setInvitePhone("");
       setInviteRelationship("");
+      setInvitations((current) => [
+        result,
+        ...current.filter((invitation) => invitation.id !== result.id),
+      ]);
       setMessage(
         result.message ||
           "Invitation saved as pending. No SMS was sent; phone verification is not enabled yet."
       );
+      try {
+        await refresh();
+      } catch (refreshError) {
+        setError(
+          refreshError instanceof Error
+            ? `Invitation was saved, but the list could not be refreshed: ${refreshError.message}`
+            : "Invitation was saved, but the list could not be refreshed."
+        );
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save the invitation.");
+      const saveError =
+        err instanceof Error ? err.message : "Could not save the invitation.";
+      if (err instanceof ApiRequestError && (err.status === 502 || err.status === 503)) {
+        try {
+          await refresh();
+        } catch {
+          setError(`${saveError} The saved invitation could not be reloaded.`);
+          return;
+        }
+      }
+      setError(saveError);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSendInvitation(invitation: FamilyInvitation) {
+    clearNotices();
+    setBusy(true);
+    try {
+      const result = await familyApi.sendInvitation(invitation.id);
+      setInvitations((current) => current.map((item) =>
+        item.id === result.id ? result : item
+      ));
+      setMessage(result.message || "Invitation SMS sent.");
+      try {
+        await refresh();
+      } catch (refreshError) {
+        setError(
+          refreshError instanceof Error
+            ? `SMS sent, but the invitation list could not be refreshed: ${refreshError.message}`
+            : "SMS sent, but the invitation list could not be refreshed."
+        );
+      }
+    } catch (err) {
+      const sendError =
+        err instanceof Error ? err.message : "Could not send the invitation.";
+      if (err instanceof ApiRequestError && (err.status === 502 || err.status === 503)) {
+        try {
+          await refresh();
+        } catch {
+          setError(`${sendError} The saved invitation could not be reloaded.`);
+          return;
+        }
+      }
+      setError(sendError);
     } finally {
       setBusy(false);
     }
@@ -331,7 +390,7 @@ export default function SettingsPage() {
     <main className="mx-auto w-full max-w-5xl space-y-6">
       <header>
         <p className="eyebrow">Account</p>
-        <h1 className="h-display mt-1 text-3xl font-semibold">Settings</h1>
+        <h1 className="h-display mt-1 text-3xl font-semibold">{t("nav.familyAccess")}</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
           Manage family profiles and their access PINs. Each family member's
           medical information is kept separate.
@@ -373,13 +432,10 @@ export default function SettingsPage() {
       </section>
 
       <section className="card space-y-4 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-      <section className="card space-y-4 p-5">
         <div>
           <h2 className="text-lg font-semibold">Family invitations</h2>
           <p className="mt-1 text-sm text-muted">
-            Save an invitation for a family member. SMS delivery and phone verification are not enabled yet.
+            Send a one-time text link. The recipient must sign in or create an account to accept it.
           </p>
         </div>
 
@@ -408,7 +464,7 @@ export default function SettingsPage() {
           </label>
           <div className="sm:col-span-2">
             <button type="submit" disabled={busy} className="btn btn-primary">
-              {busy ? "Please wait..." : "Save invitation"}
+              {busy ? "Please wait..." : "Send invitation"}
             </button>
           </div>
         </form>
@@ -426,27 +482,42 @@ export default function SettingsPage() {
                 <div className="min-w-0">
                   <p className="font-medium">{invitation.phone_number}</p>
                   <p className="text-sm text-muted">
-                    {invitation.relationship_label || "Family member"} · {invitation.status}
+                    {invitation.relationship_label || "Family member"} · {invitation.status} · SMS {invitation.delivery_status.replace(/_/g, " ")}
                   </p>
                   <p className="text-xs text-muted">
                     Expires: {new Date(invitation.expires_at).toLocaleDateString()}
                   </p>
                 </div>
                 {invitation.status === "pending" && (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void handleCancelInvitation(invitation)}
-                    className="btn"
-                  >
-                    Cancel invitation
-                  </button>
+                  <div className="flex gap-2">
+                    {invitation.delivery_status !== "sent" && (
+                      <button
+                        type="button"
+                        disabled={busy || invitation.delivery_status === "sending"}
+                        onClick={() => void handleSendInvitation(invitation)}
+                        className="btn"
+                      >
+                        Retry SMS
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void handleCancelInvitation(invitation)}
+                      className="btn"
+                    >
+                      Cancel invitation
+                    </button>
+                  </div>
                 )}
               </div>
             ))
           )}
         </div>
       </section>
+      <section className="card space-y-4 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
             <h2 className="text-lg font-semibold">Family profiles</h2>
             <p className="mt-1 text-sm text-muted">
               Select a member and enter their PIN to open their health profile.
