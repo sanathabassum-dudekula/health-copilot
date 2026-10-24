@@ -7,13 +7,23 @@ from sqlalchemy import update
 
 from .db import SessionLocal, init_db
 from .models import Document
-from .routers import abha, auth, documents, profile, family
+from .routers import (
+    abha,
+    assistant,
+    auth,
+    documents,
+    family,
+    insights,
+    profile,
+    reminders,
+    vitals,
+)
 
 logging.basicConfig(level=logging.INFO)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_: FastAPI):
     init_db()
     with SessionLocal() as db:
         db.execute(
@@ -36,10 +46,14 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Health Copilot", lifespan=lifespan)
 
 for r in (
+    abha.router,
+    assistant.router,
     auth.router,
     documents.router,
-    profile.router,
-    abha.router,
     family.router,
+    insights.router,
+    profile.router,
+    reminders.router,
+    vitals.router,
 ):
     app.include_router(r)

@@ -43,6 +43,16 @@ def _visit():
     return {"X-Visit": str(uuid.uuid4())}
 
 
+def test_frontend_api_groups_are_registered():
+    paths = app.openapi()["paths"]
+
+    assert "/auth/me" in paths
+    assert "/assistant/chat" in paths
+    assert "/reminders" in paths
+    assert "/insights" in paths
+    assert "/vitals" in paths
+
+
 def test_full_flow(monkeypatch):
     monkeypatch.setattr(graph, "structured", lambda *a: FakeLLM(EXTRACTION))
     monkeypatch.setattr(summarize, "structured", lambda *a: FakeLLM(SUMMARY))
