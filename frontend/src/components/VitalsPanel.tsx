@@ -1,8 +1,8 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
 import Link from "next/link";
+import { useTranslation } from "react-i18next";
 import { api, VitalMetric, VitalSign } from "@/api";
 import Icon from "@/components/Icon";
 
@@ -113,7 +113,7 @@ function rounded(metric: VitalMetric, value: number) {
   return metric === "heart_rate" ? Math.round(value) : Math.round(value * 10) / 10;
 }
 
-export default function VitalsPanel() {
+export default function VitalsPanel({ profileOid }: { profileOid: string }) {
   const { t, i18n } = useTranslation();
   const [readings, setReadings] = useState<VitalSign[]>([]);
   const [liveReadings, setLiveReadings] = useState<Partial<Record<VitalMetric, LiveVital>>>({});
@@ -125,20 +125,20 @@ export default function VitalsPanel() {
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
   const deviceRef = useRef<BluetoothDeviceLike | null>(null);
+  const bluetoothSavesInFlight = useRef(new Set<VitalMetric>());
   const lastBluetoothSave = useRef<Record<VitalMetric, number>>({
     heart_rate: 0,
     oxygen_saturation: 0,
     body_temperature: 0,
   });
-  const bluetoothSavesInFlight = useRef(new Set<VitalMetric>());
 
   const refresh = useCallback(async () => {
     try {
-      setReadings(await api.vitals());
+      setReadings(await api.vitals(profileOid));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : t("wearables.loadError"));
     }
-  }, [t]);
+  }, [profileOid, t]);
 
   useEffect(() => {
     setSupported(
@@ -183,7 +183,7 @@ export default function VitalsPanel() {
         source,
         ...(deviceName ? { device_name: deviceName } : {}),
         captured_at: capturedAt,
-      });
+      }, profileOid);
       if (source === "bluetooth") lastBluetoothSave.current[kind] = Date.now();
       setReadings((current) => [saved, ...current.filter((item) => item.id !== saved.id)].slice(0, 30));
       setError("");
@@ -194,7 +194,7 @@ export default function VitalsPanel() {
     } finally {
       if (source === "bluetooth") bluetoothSavesInFlight.current.delete(kind);
     }
-  }, [t]);
+  }, [profileOid, t]);
 
   async function connectDevice() {
     setError("");
@@ -325,14 +325,18 @@ export default function VitalsPanel() {
           : supported ? t("wearables.bluetoothNote") : t("wearables.unsupported")}
       </p>
 
-      <Link href="/assistant?ask=vitals" className="btn btn-soft w-fit">
-        <Icon name="message" className="h-4 w-4" />{t("wearables.askLumi")}
-      </Link>
-
       {error && <p role="alert" className="rounded-xl border border-crit/30 bg-crit-soft px-3 py-2 text-sm text-crit">{error}</p>}
 
       <div>
-        <h3 className="mb-3 font-semibold">{t("wearables.latest")}</h3>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="font-semibold">{t("wearables.latest")}</h3>
+          <Link
+            href={`/assistant?review=vitals&profile_oid=${encodeURIComponent(profileOid)}`}
+            className="btn btn-soft !min-h-9 !px-3 text-sm"
+          >
+            <Icon name="sparkles" className="h-4 w-4" />{t("wearables.askLumi")}
+          </Link>
+        </div>
         <div className="grid gap-3 sm:grid-cols-3">
           {METRICS.map((kind, index) => {
             const reading = latestByMetric[index];
@@ -386,4 +390,3 @@ export default function VitalsPanel() {
     </section>
   );
 }
-

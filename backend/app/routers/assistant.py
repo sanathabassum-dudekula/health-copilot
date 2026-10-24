@@ -1,9 +1,9 @@
-﻿import base64
+import base64
 import binascii
 import json
 import logging
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
 from typing import Literal
 
@@ -231,7 +231,10 @@ def _health_context(profile: Profile, db: Session) -> dict:
     ).all()
     recent_vitals = db.scalars(
         select(VitalSign)
-        .where(VitalSign.profile_id == profile.id)
+        .where(
+            VitalSign.profile_id == profile.id,
+            VitalSign.captured_at >= datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=30),
+        )
         .order_by(VitalSign.captured_at.desc(), VitalSign.id.desc())
         .limit(30)
     ).all()

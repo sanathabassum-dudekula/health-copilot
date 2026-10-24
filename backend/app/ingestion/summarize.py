@@ -17,7 +17,21 @@ CRITICAL_ACTIONS = [
     "If you have severe or rapidly worsening symptoms, call local emergency services now. Do not wait for this app or change medicines based on this summary.",
 ]
 STATUS = {"L": "Low", "H": "High", "LL": "Critically low", "HH": "Critically high"}
-LANGS = {"hi": "Hindi", "te": "Telugu"}
+CRITICAL_ACTIONS_TRANSLATED = {
+    "hi": [
+        "ऐप ने रिपोर्ट से निकाले गए नतीजे को गंभीर रूप से कम या अधिक चिह्नित किया है। मूल रिपोर्ट और तारीख जाँचें। यदि यह हाल का नतीजा है और इस पर पहले कार्रवाई नहीं हुई है, तो सलाह के लिए अभी रिपोर्ट लिखने वाले डॉक्टर या तत्काल चिकित्सा सेवा से संपर्क करें।",
+        "गंभीर या तेजी से बिगड़ते लक्षण हों तो स्थानीय आपातकालीन सेवा को अभी कॉल करें। इस ऐप का इंतज़ार न करें और इस सारांश के आधार पर दवा न बदलें।",
+    ],
+    "te": [
+        "యాప్ నివేదిక నుంచి తీసిన ఫలితాన్ని విమర్శనాత్మకంగా ఎక్కువ లేదా తక్కువగా గుర్తించింది. అసలు నివేదిక, తేదీని తనిఖీ చేయండి. ఇది ఇటీవలి ఫలితం అయి, ఇంకా వైద్యుడితో చర్చించకపోతే, సూచనల కోసం ఇప్పుడే నివేదిక ఇచ్చిన వైద్యుడిని లేదా అత్యవసర వైద్య సేవను సంప్రదించండి.",
+        "తీవ్రమైన లేదా వేగంగా పెరుగుతున్న లక్షణాలు ఉంటే స్థానిక అత్యవసర సేవలకు ఇప్పుడే కాల్ చేయండి. ఈ యాప్ కోసం వేచి ఉండకండి; ఈ సారాంశం ఆధారంగా మందులు మార్చవద్దు.",
+    ],
+    "ta": [
+        "அறிக்கையிலிருந்து எடுக்கப்பட்ட முடிவு மிகக் குறைவாக அல்லது மிக அதிகமாக இருப்பதாக செயலி குறித்துள்ளது. அசல் அறிக்கையையும் தேதியையும் சரிபார்க்கவும். இது சமீபத்திய முடிவாக இருந்து, இதுவரை கவனிக்கப்படவில்லை என்றால், வழிகாட்டுதலுக்காக அறிக்கையை வழங்கிய மருத்துவர் அல்லது அவசர மருத்துவ சேவையை இப்போதே தொடர்புகொள்ளவும்.",
+        "கடுமையான அல்லது வேகமாக மோசமடையும் அறிகுறிகள் இருந்தால், உள்ளூர் அவசர சேவையை இப்போதே அழைக்கவும். இந்தச் செயலிக்காகக் காத்திருக்க வேண்டாம்; இந்தச் சுருக்கத்தை வைத்து மருந்துகளை மாற்ற வேண்டாம்.",
+    ],
+}
+LANGS = {"hi": "Hindi", "te": "Telugu", "ta": "Tamil"}
 
 
 def _val(o: dict) -> str:
@@ -147,7 +161,10 @@ def build_summary(record: dict) -> dict:
 
 def translate_summary(summary: dict, lang: str) -> dict:
     out = structured(settings.TEXT_MODEL, Summary).invoke(TRANSLATE_PROMPT.format(language=LANGS[lang], summary=json.dumps(summary, ensure_ascii=False)))
-    return out.model_dump()
+    translated = out.model_dump()
+    if summary.get("urgent_actions"):
+        translated["urgent_actions"] = CRITICAL_ACTIONS_TRANSLATED[lang]
+    return translated
 
 
 def summarize(state):

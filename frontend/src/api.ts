@@ -1,4 +1,4 @@
-﻿const BASE = "/api";  // proxied to the backend by next.config.ts
+const BASE = "/api";  // proxied to the backend by next.config.ts
 
 export function localDateTimeWithOffset(): string {
   const now = new Date();
@@ -174,7 +174,7 @@ export type Doc = {
 };
 export type Obs = { id: number; display_name: string; value_num: number | null; value_text: string | null; unit: string | null; ref_low: number | null; ref_high: number | null; interpretation: string | null; note: string | null };
 export type Med = { id: number; brand_name: string; salt: string | null; strength: string | null; dose_pattern: string | null; timing: string | null; duration_days: number | null };
-export type TimelineItem = { type: string; date: string; document_id?: number | null; title: string; detail: string | null; interpretation?: string; review_status?: "pending" | "confirmed" | "rejected"; source: string; device_name?: string | null };
+export type TimelineItem = { type: string; date: string; captured_at?: string; document_id?: number | null; title: string; detail: string | null; interpretation?: string; review_status?: "pending" | "confirmed" | "rejected"; source: string; device_name?: string | null };
 export type Profile = {
   oid: string;
   name: string;

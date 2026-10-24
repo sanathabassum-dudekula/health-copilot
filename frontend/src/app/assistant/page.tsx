@@ -54,6 +54,9 @@ export default function AssistantPage() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [historyProfileOid, setHistoryProfileOid] = useState<string | null>(null);
+  const [profileScopeReady, setProfileScopeReady] = useState(false);
+  const [autoReviewVitals, setAutoReviewVitals] = useState(false);
   const [clearingHistory, setClearingHistory] = useState(false);
   const [reportUploading, setReportUploading] = useState(false);
   const [reportId, setReportId] = useState<number | null>(null);
@@ -72,6 +75,8 @@ export default function AssistantPage() {
   const recognition = useRef<SpeechRecognitionLike | null>(null);
   const imageUrls = useRef<string[]>([]);
   const historyRequest = useRef(0);
+  const autoReviewRequested = useRef(false);
+  const sendMessageRef = useRef<((content?: string, documentId?: number | null) => Promise<void>) | null>(null);
   const currentLanguage = i18n.language.split("-")[0];
   const language: Lang = currentLanguage in LANGS ? currentLanguage as Lang : "en";
   const voiceLanguage: Lang = profile && profile.voice_language in LANGS
@@ -90,12 +95,6 @@ export default function AssistantPage() {
   }, []);
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("ask") === "vitals") {
-      setDraft(t("assistant.promptVitals"));
-    }
-  }, [t]);
-
-  useEffect(() => {
     if (voicePreferenceLoaded) return;
     try {
       setSpeakResponses(localStorage.getItem(SPEAK_RESPONSES_STORAGE_KEY) === "true");
@@ -104,6 +103,15 @@ export default function AssistantPage() {
     } finally {
       setVoicePreferenceLoaded(true);
     }
+  }, [t]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("ask") !== "vitals") return;
+    setDraft(t("assistant.vitalsReviewPrompt"));
+    params.delete("ask");
+    const query = params.toString();
+    window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
   }, [t]);
 
   useEffect(() => {
@@ -118,6 +126,10 @@ export default function AssistantPage() {
   useEffect(() => {
     let cancelled = false;
     async function loadChats() {
+      setLoadingHistory(true);
+      setHistoryProfileOid(null);
+      setActiveConversationId(null);
+      setMessages([]);
       try {
         let saved = await api.assistantConversations(activeProfileOid);
         if (saved.length === 0) {
@@ -131,7 +143,10 @@ export default function AssistantPage() {
       } catch {
         if (!cancelled) setError(t("assistant.error"));
       } finally {
-        if (!cancelled) setLoadingHistory(false);
+        if (!cancelled) {
+          setHistoryProfileOid(activeProfileOid ?? "");
+          setLoadingHistory(false);
+        }
       }
     }
     void loadChats();
@@ -142,12 +157,23 @@ export default function AssistantPage() {
     familyApi.list()
       .then(({ members }) => {
         setFamilyMembers(members);
-        const requestedProfile = new URLSearchParams(window.location.search).get("profile_oid");
+        const params = new URLSearchParams(window.location.search);
+        const requestedProfile = params.get("profile_oid");
         if (requestedProfile && members.some((member) => member.oid === requestedProfile)) {
           setActiveProfileOid(requestedProfile);
         }
+        if (!autoReviewRequested.current && params.get("review") === "vitals") {
+          autoReviewRequested.current = true;
+          setAutoReviewVitals(true);
+          params.delete("review");
+          const query = params.toString();
+          window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+        }
+        setProfileScopeReady(true);
       })
-      .catch(() => setError(t("family.loadError")));
+      .catch(() => {
+        setError(t("family.loadError"));
+      });
   }, [t]);
 
   useEffect(() => {
@@ -274,6 +300,28 @@ export default function AssistantPage() {
       setSending(false);
     }
   }
+
+  sendMessageRef.current = sendMessage;
+
+  useEffect(() => {
+    if (
+      !autoReviewVitals
+      || !profileScopeReady
+      || loadingHistory
+      || activeConversationId === null
+      || historyProfileOid !== (activeProfileOid ?? "")
+    ) return;
+    setAutoReviewVitals(false);
+    void sendMessageRef.current?.(t("assistant.vitalsReviewPrompt"), null);
+  }, [
+    activeConversationId,
+    activeProfileOid,
+    autoReviewVitals,
+    historyProfileOid,
+    loadingHistory,
+    profileScopeReady,
+    t,
+  ]);
 
   async function clearHistory() {
     if (!window.confirm(t("assistant.confirmClear"))) return;
@@ -408,7 +456,6 @@ export default function AssistantPage() {
     t("assistant.promptAllergy"),
     t("assistant.promptMedicine"),
     t("assistant.promptResults"),
-    t("assistant.promptVitals"),
   ];
 
   return (

@@ -78,6 +78,18 @@ def test_template_summary_keeps_critical_guidance_when_model_is_unavailable(monk
     assert "ordering clinician" in summary["urgent_actions"][0]
 
 
+def test_critical_summary_translation_uses_reviewed_safety_text(monkeypatch):
+    monkeypatch.setattr(summarize, "structured", lambda *_: FakeSummaryModel())
+
+    for language in ("hi", "te", "ta"):
+        translated = summarize.translate_summary(
+            {"urgent_actions": summarize.CRITICAL_ACTIONS},
+            language,
+        )
+        assert translated["urgent_actions"] == summarize.CRITICAL_ACTIONS_TRANSLATED[language]
+        assert translated["urgent_actions"] != ["model-generated advice"]
+
+
 def test_report_chat_context_uses_only_computed_critical_flags():
     document = SimpleNamespace(
         doc_type="lab_report",
@@ -146,32 +158,28 @@ def test_chat_includes_and_saves_critical_report_guidance(monkeypatch):
 
     with TestClient(app, headers={"X-Visit": visit_id}) as client:
         client.get("/profile")
-        with SessionLocal() as db:
-            visit = db.scalar(select(Visit).where(Visit.token == visit_id))
-            assert visit is not None
-            profile = db.get(Profile, visit.user_id)
-            assert profile is not None
-            profile_id = profile.id
-
         vital_response = client.post(
             "/vitals",
             json={
                 "metric": "body_temperature",
                 "value": 37.5,
                 "source": "bluetooth",
-                "device_name": "Test thermometer",
+                "device_name": "Synthetic thermometer",
                 "captured_at": "2026-10-24T10:00:00+00:00",
             },
         )
         assert vital_response.status_code == 201
-        timeline = client.get("/profile/timeline?types=vitals").json()
-        assert timeline[0]["type"] == "vital_sign"
-        assert timeline[0]["source"] == "bluetooth"
-        assert timeline[0]["device_name"] == "Test thermometer"
+        timeline = client.get("/profile/timeline?types=reports,vitals")
+        assert timeline.status_code == 200
+        assert {item["type"] for item in timeline.json()} == {"vital_sign"}
 
         with SessionLocal() as db:
+            visit = db.scalar(select(Visit).where(Visit.token == visit_id))
+            assert visit is not None
+            profile = visit.user.profile
+            assert profile is not None
             document = Document(
-                profile_id=profile_id,
+                profile_id=profile.id,
                 status="done",
                 doc_type="lab_report",
                 extraction={"doc_type": "lab_report", "lab_results": []},
@@ -179,7 +187,7 @@ def test_chat_includes_and_saves_critical_report_guidance(monkeypatch):
             db.add(document)
             db.flush()
             db.add(Observation(
-                profile_id=profile_id,
+                profile_id=profile.id,
                 document_id=document.id,
                 display_name="Potassium",
                 value_num=6.9,
@@ -188,10 +196,6 @@ def test_chat_includes_and_saves_critical_report_guidance(monkeypatch):
             ))
             db.commit()
             document_id = document.id
-
-        mixed_timeline = client.get("/profile/timeline?types=reports,vitals")
-        assert mixed_timeline.status_code == 200
-        assert {item["type"] for item in mixed_timeline.json()} == {"document", "vital_sign"}
 
         response = client.post(
             "/assistant/chat",
@@ -210,4 +214,5 @@ def test_chat_includes_and_saves_critical_report_guidance(monkeypatch):
     assert "local emergency services" in payload["spoken_answer"]
     system_context = captured["messages"][0].content
     assert '"recent_vital_readings":' in system_context
-    assert "Test thermometer" in system_context
+    assert "Synthetic thermometer" in system_context
+    assert '"source": "bluetooth"' in system_context

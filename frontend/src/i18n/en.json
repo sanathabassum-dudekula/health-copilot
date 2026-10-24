@@ -139,9 +139,10 @@
   "noSummary": "No summary for this record.",
   "diagnoses": "Diagnoses",
   "reports": "Reports",
-  "vitals": "Vitals",
   "timeline": "Timeline",
   "timelineSub": "Everything in one place, newest first.",
+  "timelineLoadError": "Could not load the health timeline. Check your connection and try again.",
+  "vitals": "Vitals",
   "tl": {
     "document": "Document",
     "document_pending": "Needs review",
@@ -441,7 +442,6 @@
     "promptAllergy": "Could these symptoms be an allergic reaction?",
     "promptMedicine": "Could my allergy be related to a medicine?",
     "promptResults": "Help me understand a recent test result.",
-    "promptVitals": "Please review my recent vital readings. Explain what they may and may not show, and suggest whether I should discuss them with a clinician. Do not diagnose.",
     "inputLabel": "Your health question",
     "placeholder": "Type your question in English, Hindi, Telugu, or Tamil…",
     "send": "Send message",
@@ -469,6 +469,7 @@
     "speakReplies": "Speak replies aloud",
     "readAloud": "Read aloud",
     "voiceLanguageHint": "Voice input and spoken replies follow your preferred language setting.",
+    "vitalsReviewPrompt": "Please review my recent saved vital readings. Explain any notable patterns, tell me what information is missing, and say when I should contact a clinician. Treat device readings as potentially inaccurate; do not diagnose or infer an emergency from a reading alone.",
     "voiceUnavailable": "Voice input is not supported by this browser.",
     "voiceTranslationUnavailable": "The written reply is available, but its spoken-language translation could not be prepared.",
     "voiceError": "Voice input stopped. Check microphone permission and try again.",
@@ -638,8 +639,8 @@
     "saveError": "Could not save the reading.",
     "summaryTitle": "Recent vitals",
     "summaryDescription": "Latest saved measurements for this profile.",
+    "askLumi": "Ask Lumi to review these readings",
     "manage": "Connect or add readings",
-    "askLumi": "Ask Lumi to review readings",
     "loading": "Loading readings…",
     "noSummary": "No vitals saved yet. Connect a device or add a reading."
   }

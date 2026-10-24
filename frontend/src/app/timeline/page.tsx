@@ -8,14 +8,29 @@ import Timeline from "@/components/Timeline";
 import { EmptyState, Skeleton } from "@/components/ui";
 
 const TYPES: { key: string; icon: IconName }[] = [
-  { key: "reports", icon: "file" }, { key: "medicines", icon: "pill" }, { key: "diagnoses", icon: "steth" }, { key: "vitals", icon: "activity" },
+  { key: "reports", icon: "file" }, { key: "medicines", icon: "pill" }, { key: "diagnoses", icon: "steth" },
+  { key: "vitals", icon: "heart" },
 ];
 
 export default function TimelinePage() {
   const { t } = useTranslation();
   const [on, setOn] = useState<string[]>(TYPES.map((x) => x.key));
   const [items, setItems] = useState<TimelineItem[] | null>(null);
-  useEffect(() => { api.timeline(on).then(setItems).catch(() => setItems([])); }, [on]);
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setItems(null);
+    setError(false);
+    api.timeline(on)
+      .then((loaded) => { if (!cancelled) setItems(loaded); })
+      .catch(() => {
+        if (!cancelled) {
+          setItems([]);
+          setError(true);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [on]);
   const toggle = (k: string) => setOn((xs) => (xs.includes(k) ? xs.filter((x) => x !== k) : [...xs, k]));
   return (
     <div className="space-y-6">
@@ -31,7 +46,8 @@ export default function TimelinePage() {
             <Icon name={icon} className="h-4 w-4" />{t(key)}
           </button>))}
       </div>
-      {items === null ? <div className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-20" />)}</div>
+      {error ? <p role="alert" className="rounded-xl border border-crit/30 bg-crit-soft p-4 text-sm text-crit">{t("timelineLoadError")}</p>
+        : items === null ? <div className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-20" />)}</div>
         : items.length === 0 ? <EmptyState icon="activity" title={t("noItems")} sub={t("noItemsSub")}>
             <Link href="/upload" className="btn btn-primary mt-2"><Icon name="upload" className="h-4 w-4" />{t("nav.upload")}</Link></EmptyState>
         : <Timeline items={items} />}

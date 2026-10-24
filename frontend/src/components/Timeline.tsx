@@ -6,9 +6,8 @@ import { Badge, FLAG, fmtDate, fmtMonth } from "./ui";
 
 const KIND: Record<string, { icon: IconName; tone: string }> = {
   document: { icon: "file", tone: "brand" }, abnormal_result: { icon: "flask", tone: "high" },
-  document_pending: { icon: "file", tone: "high" },
+  document_pending: { icon: "file", tone: "high" }, vital_sign: { icon: "heart", tone: "brand" },
   medicine_started: { icon: "pill", tone: "med" }, medicine_ended: { icon: "pill", tone: "muted" }, diagnosis: { icon: "steth", tone: "dx" },
-  vital_sign: { icon: "activity", tone: "brand" },
 };
 
 export default function Timeline({ items }: { items: TimelineItem[] }) {
@@ -26,12 +25,10 @@ export default function Timeline({ items }: { items: TimelineItem[] }) {
               const kind = KIND[i.type] ?? KIND.document;
               const f = i.interpretation ? FLAG[i.interpretation] : undefined;
               const tone = f && i.type === "abnormal_result" ? f.tone : kind.tone;
-              const title = i.type === "document" ? t(`docType.${i.title.replace(/ /g, "_")}`, { defaultValue: i.title })
-                : i.type === "vital_sign" ? t(`wearables.${i.title}`, { defaultValue: i.title }) : i.title;
+              const title = i.type === "document"
+                ? t(`docType.${i.title.replace(/ /g, "_")}`, { defaultValue: i.title })
+                : i.type === "vital_sign" ? t(`wearables.${i.title}`) : i.title;
               const href = i.document_id ? `/documents/${i.document_id}` : "/devices";
-              const date = i.type === "vital_sign"
-                ? new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(i.date))
-                : fmtDate(i.date, i18n.language);
               return (
                 <li key={k} className="reveal relative" style={{ ["--d" as string]: Math.min(n++, 8) }}>
                   <span className="absolute -left-12 top-3 grid h-10 w-10 place-items-center rounded-full border-4 border-bg"
@@ -44,16 +41,15 @@ export default function Timeline({ items }: { items: TimelineItem[] }) {
                       <p className="mt-0.5 truncate font-semibold">{title}</p>
                       <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-muted">
                         {i.detail && <span>{i.detail}</span>}
+                        {i.captured_at && <time dateTime={i.captured_at}>{new Intl.DateTimeFormat(i18n.language, { timeStyle: "short" }).format(new Date(i.captured_at))}</time>}
+                        {i.device_name && <span>{i.device_name}</span>}
                         {f && <Badge tone={f.tone} icon={f.icon}>{t(f.label)}</Badge>}
                         {i.review_status === "pending" && <Badge tone="high" icon="alert">{t("documentDetail.pendingReview")}</Badge>}
                         {i.source === "abdm" && <Badge tone="med" icon="shield">{t("abdmBadge")}</Badge>}
-                        {i.type === "vital_sign" && <Badge tone={i.source === "bluetooth" ? "brand" : "neutral"} icon={i.source === "bluetooth" ? "link" : "activity"}>
-                          {t(i.source === "bluetooth" ? "wearables.sourceBluetooth" : "wearables.sourceManual")}
-                          {i.device_name ? ` · ${i.device_name}` : ""}
-                        </Badge>}
+                        {i.type === "vital_sign" && <Badge tone="brand" icon="heart">{t(i.source === "bluetooth" ? "wearables.sourceBluetooth" : "wearables.sourceManual")}</Badge>}
                       </div>
                     </div>
-                    <time className="shrink-0 text-xs text-muted" dateTime={i.date}>{date}</time>
+                    <time className="shrink-0 text-xs text-muted" dateTime={i.date}>{fmtDate(i.date, i18n.language)}</time>
                     <Icon name="chevron" className="h-4 w-4 text-muted transition group-hover:translate-x-0.5 group-hover:text-brand" />
                   </Link>
                 </li>);

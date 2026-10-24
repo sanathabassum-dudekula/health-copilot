@@ -62,7 +62,7 @@ export default function DevicesPage() {
           {t("wearables.loading")}
         </div>
       ) : profile ? (
-        <VitalsPanel />
+        <VitalsPanel profileOid={profile.oid} />
       ) : null}
     </div>
   );

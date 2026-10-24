@@ -137,21 +137,26 @@ def timeline(types: str = "reports,medicines,diagnoses,vitals", p: Profile = Dep
             items.append({"type": "diagnosis", "date": c.recorded_at, "document_id": c.document_id,
                           "title": c.name, "detail": None, "source": docs[c.document_id].source})
     if "vitals" in want:
-        readings = db.scalars(
+        for vital in db.scalars(
             select(VitalSign)
             .where(VitalSign.profile_id == p.id)
             .order_by(VitalSign.captured_at.desc(), VitalSign.id.desc())
             .limit(100)
-        )
-        for reading in readings:
+        ):
+            captured_at = vital.captured_at
+            if captured_at.tzinfo is None:
+                captured_at = captured_at.replace(tzinfo=timezone.utc)
+            else:
+                captured_at = captured_at.astimezone(timezone.utc)
             items.append({
                 "type": "vital_sign",
-                "date": reading.captured_at,
+                "date": captured_at,
+                "captured_at": captured_at.isoformat(),
                 "document_id": None,
-                "title": reading.metric,
-                "detail": f"{reading.value:g} {reading.unit}",
-                "source": reading.source,
-                "device_name": reading.device_name,
+                "title": vital.metric,
+                "detail": f"{vital.value:g} {vital.unit}",
+                "source": vital.source,
+                "device_name": vital.device_name,
             })
 
     # Injury events are derived from the document's stored extraction.

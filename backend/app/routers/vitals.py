@@ -18,7 +18,7 @@ VitalSource = Literal["bluetooth", "manual"]
 UNITS = {
     "heart_rate": "bpm",
     "oxygen_saturation": "%",
-    "body_temperature": "Â°C",
+    "body_temperature": "°C",
 }
 RANGES = {
     "heart_rate": (20, 250),
