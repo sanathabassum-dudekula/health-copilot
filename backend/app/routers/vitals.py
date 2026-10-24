@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
+from ..access import is_requested_profile
 from ..auth import active_profile
 from ..db import get_db
 from ..models import Profile, VitalSign
@@ -57,7 +58,7 @@ def list_vitals(
     profile: Profile = Depends(active_profile),
     db: Session = Depends(get_db),
 ):
-    if profile_oid is not None and profile_oid != profile.oid:
+    if not is_requested_profile(profile, profile_oid):
         raise HTTPException(status_code=404, detail="Profile not found")
     records = db.scalars(
         select(VitalSign)
@@ -75,7 +76,7 @@ def create_vital(
     profile: Profile = Depends(active_profile),
     db: Session = Depends(get_db),
 ):
-    if profile_oid is not None and profile_oid != profile.oid:
+    if not is_requested_profile(profile, profile_oid):
         raise HTTPException(status_code=404, detail="Profile not found")
     lower, upper = RANGES[body.metric]
     if not lower <= body.value <= upper:
@@ -106,4 +107,3 @@ def create_vital(
     db.commit()
     db.refresh(record)
     return _vital_json(record)
-

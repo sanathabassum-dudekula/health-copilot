@@ -1,11 +1,13 @@
 from datetime import date
+from typing import Literal
 
-from fastapi import APIRouter, Depends, Response
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Response
+from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from ..auth import current_profile, delete_profile_data
+from ..access import profile_oid_for
+from ..auth import active_profile, current_profile, delete_profile_data
 from ..db import get_db
 from ..fhir.serialize import to_bundle
 from ..models import Allergy, Condition, Document, Medication, Observation, Profile
@@ -19,10 +21,20 @@ def _q(db: Session, p: Profile, m, *where):
 
 
 class ProfileUpdate(BaseModel):
-    name: str | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=120)
     dob: date | None = None
-    sex: str | None = None
-    preferred_language: str | None = None
+    sex: str | None = Field(default=None, max_length=40)
+    age: int | None = Field(default=None, ge=0, le=130)
+    blood_group: str | None = Field(default=None, max_length=10)
+    allergies_text: str | None = Field(default=None, max_length=5000)
+    conditions_text: str | None = Field(default=None, max_length=5000)
+    medicines_text: str | None = Field(default=None, max_length=5000)
+    previous_records: str | None = Field(default=None, max_length=5000)
+    emergency_contact_name: str | None = Field(default=None, max_length=120)
+    emergency_contact_phone: str | None = Field(default=None, max_length=40)
+    preferred_language: Literal["en", "hi", "te", "ta"] | None = None
+    preferred_voice_language: Literal["en", "hi", "te", "ta"] | None = None
+    voice_reminders_enabled: bool | None = None
 
 
 def _age(dob: date | None) -> int | None:
@@ -39,7 +51,17 @@ def _profile_json(p: Profile, db: Session) -> dict:
     for o in sorted(_q(db, p, Observation, Observation.interpretation.in_(ABNORMAL)), key=lambda o: o.effective_at or date.min):
         latest[o.display_name] = o
     return {
-        "name": p.name, "dob": p.dob, "age": _age(p.dob), "sex": p.sex, "language": p.user.preferred_language,
+        "oid": profile_oid_for(p),
+        "name": p.name, "dob": p.dob, "age": _age(p.dob) if p.dob else p.age, "sex": p.sex, "language": p.user.preferred_language,
+        "voice_language": p.user.preferred_voice_language,
+        "voice_reminders_enabled": p.user.voice_reminders_enabled,
+        "blood_group": p.blood_group,
+        "allergies_text": p.allergies_text,
+        "conditions_text": p.conditions_text,
+        "medicines_text": p.medicines_text,
+        "previous_records": p.previous_records,
+        "emergency_contact_name": p.emergency_contact_name,
+        "emergency_contact_phone": p.emergency_contact_phone,
         "abha": {"number": p.abha_number, "address": p.abha_address, "linked": bool(p.abha_linked_at)},
         "conditions": sorted({c.name for c in _q(db, p, Condition)}),
         "allergies": sorted({a.substance for a in _q(db, p, Allergy)}),
@@ -53,17 +75,31 @@ def _profile_json(p: Profile, db: Session) -> dict:
 
 
 @router.get("/profile")
-def get_profile(p: Profile = Depends(current_profile), db: Session = Depends(get_db)):
+def get_profile(p: Profile = Depends(active_profile), db: Session = Depends(get_db)):
     return _profile_json(p, db)
 
 
 @router.put("/profile")
-def put_profile(body: ProfileUpdate, p: Profile = Depends(current_profile), db: Session = Depends(get_db)):
-    for k in ("name", "dob", "sex"):
-        if (v := getattr(body, k)) is not None:
-            setattr(p, k, v)
-    if body.preferred_language:
-        p.user.preferred_language = body.preferred_language
+def put_profile(body: ProfileUpdate, p: Profile = Depends(active_profile), db: Session = Depends(get_db)):
+    if "name" in body.model_fields_set and (body.name is None or not body.name.strip()):
+        raise HTTPException(status_code=422, detail="Name cannot be blank.")
+
+    user_fields = {
+        "preferred_language",
+        "preferred_voice_language",
+        "voice_reminders_enabled",
+    }
+    changes = body.model_dump(exclude_unset=True)
+    for field in user_fields & changes.keys():
+        value = changes[field]
+        if value is None:
+            raise HTTPException(status_code=422, detail=f"{field} cannot be blank.")
+        setattr(p.user, field, value)
+    for field in changes.keys() - user_fields:
+        value = changes[field]
+        if field == "name":
+            value = value.strip()
+        setattr(p, field, value)
     db.commit()
     return _profile_json(p, db)
 
@@ -75,7 +111,7 @@ def delete_profile(p: Profile = Depends(current_profile), db: Session = Depends(
 
 
 @router.get("/profile/timeline")
-def timeline(types: str = "reports,medicines,diagnoses", p: Profile = Depends(current_profile),
+def timeline(types: str = "reports,medicines,diagnoses", p: Profile = Depends(active_profile),
              db: Session = Depends(get_db)):
     want = set(types.split(","))
     items = []
@@ -153,5 +189,5 @@ def timeline(types: str = "reports,medicines,diagnoses", p: Profile = Depends(cu
 
 
 @router.get("/profile/fhir")
-def fhir_export(p: Profile = Depends(current_profile)):
+def fhir_export(p: Profile = Depends(active_profile)):
     return to_bundle(p)

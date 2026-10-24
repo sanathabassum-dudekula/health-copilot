@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from ..access import confirmed_document_ids
+from ..access import confirmed_document_ids, is_requested_profile, profile_oid_for
 from ..auth import active_profile
 from ..config import settings
 from ..db import get_db
@@ -76,7 +76,7 @@ class ReminderUpdate(BaseModel):
 def _reminder_json(reminder: HealthReminder) -> dict:
     return {
         "id": reminder.id,
-        "profile_oid": reminder.profile.oid,
+        "profile_oid": profile_oid_for(reminder.profile),
         "document_id": reminder.document_id,
         "title": reminder.title,
         "details": reminder.details,
@@ -154,7 +154,7 @@ def _requested_active_profile(
     profile_oid: str | None = None,
     profile: Profile = Depends(active_profile),
 ) -> Profile:
-    if profile_oid is not None and profile_oid != profile.oid:
+    if not is_requested_profile(profile, profile_oid):
         raise HTTPException(status_code=404, detail="Profile not found")
     return profile
 @router.get("/confirmed-prescriptions")
@@ -324,6 +324,4 @@ def delete_reminder(
     reminder = _owned_reminder(reminder_id, profile, db)
     db.delete(reminder)
     db.commit()
-
-
 

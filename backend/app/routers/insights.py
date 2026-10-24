@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..access import confirmed_document_ids
+from ..access import confirmed_document_ids, is_requested_profile, profile_oid_for
 from ..auth import active_profile
 from ..db import get_db
 from ..models import (
@@ -27,7 +27,7 @@ def get_insights(
     profile: Profile = Depends(active_profile),
     db: Session = Depends(get_db),
 ):
-    if profile_oid is not None and profile_oid != profile.oid:
+    if not is_requested_profile(profile, profile_oid):
         raise HTTPException(status_code=404, detail="Profile not found")
 
     observations = db.scalars(
@@ -148,11 +148,10 @@ def get_insights(
         wellness.append({"kind": "add_records"})
 
     return {
-        "profile": {"oid": profile.oid, "name": profile.name},
+        "profile": {"oid": profile_oid_for(profile), "name": profile.name},
         "flagged_results": flagged_results,
         "trends": trends[-20:],
         "follow_ups": follow_ups,
         "medicine_reminder_suggestions": medicine_reminder_suggestions,
         "wellness": wellness,
     }
-

@@ -1,20 +1,26 @@
 
 import io
+import logging
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from ..auth import current_profile
+from ..access import is_requested_profile
+from ..auth import active_profile
 from ..db import get_db
 from ..ingestion.graph import run_ingest
 from ..ingestion.summarize import LANGS, translate_summary
 from ..models import Document, Profile
-from ..storage import get_s3_client, upload_file as store_file, delete_file
+from ..storage import delete_file, download_file, upload_file as store_file
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+log = logging.getLogger(__name__)
 
 EXT = {
     "image/jpeg": ".jpg",
@@ -22,7 +28,6 @@ EXT = {
     "application/pdf": ".pdf",
 }
 MAX_BYTES = 15 * 1024 * 1024
-BUCKET = "curamind-medical-files"
 
 
 def _own(db: Session, profile: Profile, doc_id: int) -> Document:
@@ -56,9 +61,13 @@ def doc_brief(d: Document) -> dict:
 async def upload(
     file: UploadFile,
     bg: BackgroundTasks,
-    p: Profile = Depends(current_profile),
+    profile_oid: str | None = None,
+    p: Profile = Depends(active_profile),
     db: Session = Depends(get_db),
 ):
+    if not is_requested_profile(p, profile_oid):
+        raise HTTPException(404, "Profile not found")
+
     if file.content_type not in EXT:
         raise HTTPException(415, "Only JPG, PNG or PDF files are accepted")
 
@@ -85,12 +94,13 @@ async def upload(
         doc.file_path = key
         db.commit()
         db.refresh(doc)
-    except Exception:
+    except (BotoCoreError, OSError, SQLAlchemyError, ValueError):
         db.rollback()
         try:
             delete_file(key)
-        except Exception:
-            pass
+        except (BotoCoreError, OSError, ValueError):
+            log.exception("Could not clean up a failed document upload")
+        log.exception("Could not persist an uploaded document")
         raise HTTPException(
             502, "Could not save the document to secure storage"
         )
@@ -101,9 +111,13 @@ async def upload(
 
 @router.get("")
 def list_documents(
-    p: Profile = Depends(current_profile),
+    profile_oid: str | None = None,
+    p: Profile = Depends(active_profile),
     db: Session = Depends(get_db),
 ):
+    if not is_requested_profile(p, profile_oid):
+        raise HTTPException(404, "Profile not found")
+
     docs = db.scalars(
         select(Document)
         .where(Document.profile_id == p.id)
@@ -115,7 +129,7 @@ def list_documents(
 @router.get("/{doc_id}")
 def get_document(
     doc_id: int,
-    p: Profile = Depends(current_profile),
+    p: Profile = Depends(active_profile),
     db: Session = Depends(get_db),
 ):
     d = _own(db, p, doc_id)
@@ -137,7 +151,7 @@ def get_document(
 @router.get("/{doc_id}/file")
 def get_file(
     doc_id: int,
-    p: Profile = Depends(current_profile),
+    p: Profile = Depends(active_profile),
     db: Session = Depends(get_db),
 ):
     d = _own(db, p, doc_id)
@@ -145,18 +159,19 @@ def get_file(
     if not d.file_path:
         raise HTTPException(404, "No original file for this document")
 
-    try:
-        obj = get_s3_client().get_object(
-            Bucket=BUCKET,
-            Key=d.file_path,
-        )
-        data = obj["Body"].read()
-    except Exception:
-        raise HTTPException(
-            404, "Original document not found in storage"
-        )
-
     filename = Path(d.file_path).name
+    try:
+        with TemporaryDirectory() as temp_dir:
+            destination = Path(temp_dir) / filename
+            download_file(d.file_path, str(destination))
+            data = destination.read_bytes()
+    except FileNotFoundError:
+        raise HTTPException(404, "Original document not found in storage")
+    except ClientError as exc:
+        error_code = exc.response.get("Error", {}).get("Code")
+        if error_code in {"404", "NoSuchKey", "NotFound"}:
+            raise HTTPException(404, "Original document not found in storage") from exc
+        raise
 
     return StreamingResponse(
         io.BytesIO(data),
@@ -171,7 +186,7 @@ def get_file(
 def get_summary(
     doc_id: int,
     lang: str = "en",
-    p: Profile = Depends(current_profile),
+    p: Profile = Depends(active_profile),
     db: Session = Depends(get_db),
 ):
     d = _own(db, p, doc_id)

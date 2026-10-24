@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import active_profile
 
-from ..access import confirmed_document_ids
+from ..access import confirmed_document_ids, is_requested_profile
 from ..config import settings
 from ..db import SessionLocal, get_db
 from ..ingestion.llm import chat_model, invoke_with_retry, structured
@@ -363,7 +363,7 @@ def _reminder_proposal(
 
 
 def _assert_active_profile(profile: Profile, requested_oid: str | None) -> Profile:
-    if requested_oid is not None and requested_oid != profile.oid:
+    if not is_requested_profile(profile, requested_oid):
         raise HTTPException(
             status_code=403,
             detail="Unlock the requested family profile with its PIN before accessing it.",
@@ -676,4 +676,3 @@ def chat(
         "reminder_proposal_error": reminder_proposal_error,
         "messages": result,
     }
-

@@ -176,6 +176,7 @@ export type Obs = { id: number; display_name: string; value_num: number | null; 
 export type Med = { id: number; brand_name: string; salt: string | null; strength: string | null; dose_pattern: string | null; timing: string | null; duration_days: number | null };
 export type TimelineItem = { type: string; date: string; document_id: number; title: string; detail: string | null; interpretation?: string; review_status?: "pending" | "confirmed" | "rejected"; source: string };
 export type Profile = {
+  oid: string;
   name: string;
   age: number | null;
   language: string;
@@ -538,5 +539,4 @@ export const familyApi = {
   remove: (oid: string) =>
     req<void>(`/family/${encodeURIComponent(oid)}`, { method: "DELETE" }),
 };
-
 

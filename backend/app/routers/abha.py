@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..auth import current_profile
+from ..auth import active_profile
 from ..db import get_db
 from ..fhir.importer import import_bundle
 from ..models import Document, Profile
@@ -29,7 +29,7 @@ class Verify(BaseModel):
 
 
 @router.post("/link")
-def link(body: Link, p: Profile = Depends(current_profile), db: Session = Depends(get_db)):
+def link(body: Link, p: Profile = Depends(active_profile), db: Session = Depends(get_db)):
     v = body.abha.strip()
     if NUMBER.fullmatch(v):
         p.abha_number, p.abha_address = v, None
@@ -43,7 +43,7 @@ def link(body: Link, p: Profile = Depends(current_profile), db: Session = Depend
 
 
 @router.post("/verify")
-def verify(body: Verify, p: Profile = Depends(current_profile), db: Session = Depends(get_db)):
+def verify(body: Verify, p: Profile = Depends(active_profile), db: Session = Depends(get_db)):
     if not (p.abha_number or p.abha_address):
         raise HTTPException(409, "Start by linking an ABHA number or address")
     if body.otp != DEMO_OTP:
@@ -54,7 +54,7 @@ def verify(body: Verify, p: Profile = Depends(current_profile), db: Session = De
 
 
 @router.post("/import")
-def import_records(p: Profile = Depends(current_profile), db: Session = Depends(get_db)):
+def import_records(p: Profile = Depends(active_profile), db: Session = Depends(get_db)):
     if not p.abha_linked_at:
         raise HTTPException(409, "Link and verify your ABHA first")
     have = set(db.scalars(select(Document.file_path).where(Document.profile_id == p.id, Document.source == "abdm")))

@@ -1,18 +1,16 @@
 import hashlib
 import hmac
 import secrets
-import shutil
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 from fastapi import Depends, Header, HTTPException, Request, Response
-from sqlalchemy import select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .config import settings
 from .db import get_db
-from .models import AuthSession, FamilyLink, Profile, User, Visit
+from .models import AuthSession, FamilyInvitation, FamilyLink, Profile, User, Visit
+from .storage import delete_file
 
 SESSION_COOKIE = "curamind_session"
 SESSION_TTL = timedelta(days=30)
@@ -112,7 +110,21 @@ def clear_session_cookie(response: Response) -> None:
 
 def delete_profile_data(db: Session, p: Profile):
     for document in p.documents:
-        shutil.rmtree(Path(settings.STORAGE_DIR) / str(document.id), ignore_errors=True)
+        if document.file_path:
+            delete_file(document.file_path)
+    user_id = p.user_id
+    db.execute(delete(AuthSession).where(AuthSession.user_id == user_id))
+    db.execute(
+        delete(FamilyInvitation).where(FamilyInvitation.owner_user_id == user_id)
+    )
+    db.execute(
+        delete(FamilyLink).where(
+            or_(
+                FamilyLink.owner_user_id == user_id,
+                FamilyLink.member_user_id == user_id,
+            )
+        )
+    )
     db.delete(p.user)
     db.commit()
 

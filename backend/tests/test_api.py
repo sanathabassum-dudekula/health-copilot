@@ -1,5 +1,6 @@
 """End-to-end through the real ingestion pipeline with the LLM stubbed."""
 import io
+from pathlib import Path
 import uuid
 
 from fastapi.testclient import TestClient
@@ -8,6 +9,7 @@ from PIL import Image
 
 from app.ingestion import graph, summarize
 from app.ingestion.schemas import DocumentExtraction, Summary
+from app import storage
 from app.main import app
 
 EXTRACTION = DocumentExtraction.model_validate({
@@ -72,6 +74,12 @@ def test_full_flow(monkeypatch):
         assert "contact a doctor promptly" in d["summary"]["abnormal_explanations"][0]["what_it_means"]
 
         assert c.get(f"/documents/{d['id']}/file").status_code == 200
+        stored_files = list(
+            (Path(storage.settings.STORAGE_DIR) / "uploads").glob(
+                f"*/{d['id']}/original.png"
+            )
+        )
+        assert len(stored_files) == 1
         prof = c.get("/profile").json()
         assert prof["conditions"] == ["Anaemia"]
         kinds = {i["type"] for i in c.get("/profile/timeline").json()}
@@ -90,6 +98,7 @@ def test_full_flow(monkeypatch):
 
         Bundle.model_validate(c.get("/profile/fhir").json())
         assert c.delete("/profile").status_code == 204
+        assert not stored_files[0].exists()
         assert c.get("/documents").json() == []  # data gone; a fresh demo profile is recreated
 
 

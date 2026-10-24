@@ -5,6 +5,14 @@ from sqlalchemy.orm import Session
 from .models import Document, FamilyLink, Profile
 
 
+def profile_oid_for(profile: Profile) -> str:
+    return profile.oid or f"owner-{profile.id}"
+
+
+def is_requested_profile(profile: Profile, requested_oid: str | None) -> bool:
+    return requested_oid is None or requested_oid == profile_oid_for(profile)
+
+
 def confirmed_document_ids(profile_id: int):
     return select(Document.id).where(
         Document.profile_id == profile_id,
@@ -17,7 +25,7 @@ def profile_for_owner(
     db: Session,
     profile_oid: str | None = None,
 ) -> Profile:
-    if profile_oid is None or profile_oid == owner.oid:
+    if profile_oid is None or profile_oid == profile_oid_for(owner):
         return owner
     member = db.scalar(select(Profile).where(Profile.oid == profile_oid))
     if member is None:
