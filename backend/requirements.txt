@@ -4,6 +4,7 @@ python-multipart
 sqlalchemy>=2
 psycopg[binary]
 pydantic>=2
+email-validator
 pydantic-settings
 langchain
 langchain-google-genai
