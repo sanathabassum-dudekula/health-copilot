@@ -219,7 +219,7 @@
   "language": "Language",
   "theme": "Toggle dark mode",
   "serverDown": "Can't reach the server",
-  "serverDownSub": "Make sure the backend is running on port 8001.",
+  "serverDownSub": "Check that the backend is running and the local BACKEND_URL points to it.",
   "abhaProgress": "Progress",
   "auth": {
     "checking": "Checking your account...",
